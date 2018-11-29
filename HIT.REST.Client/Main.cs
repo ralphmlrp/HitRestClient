@@ -4,9 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace HIT.REST.Client
-{
-    public class Class1
-    {
-    }
+
+
+namespace HIT.REST.Client {
+
+  public class Main {
+  }
+
+
 }
