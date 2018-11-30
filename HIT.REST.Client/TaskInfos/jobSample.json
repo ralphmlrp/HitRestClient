@@ -1,0 +1,1 @@
+{"Credentials":{"Betriebsnummer":"09 000 000 0015","MitBenutzer":"0","PIN":"900015"},"JobInfos":[{"Action":"IS","Entity":"Geburt","FileName":"TaskInfos\\GeburtInsert.json"},{"Action":"IS","Entity":"Zugang","FileName":"TaskInfos\\ZugangInsert.json"}]}
