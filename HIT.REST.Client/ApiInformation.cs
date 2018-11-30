@@ -10,5 +10,7 @@ namespace HIT.REST.Client
     {
         public string Prefix { get; set; }
         public List<String> BaseUrls { get; set; }
+
+        public bool SuppressCertificateWarning { get; set; }
     }
 }

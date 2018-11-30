@@ -1,1 +1,20 @@
-{"Credentials":{"Betriebsnummer":"09 000 000 0015","MitBenutzer":"0","PIN":"900015"},"JobInfos":[{"Action":"IS","Entity":"Geburt","FileName":"TaskInfos\\GeburtInsert.json"},{"Action":"IS","Entity":"Zugang","FileName":"TaskInfos\\ZugangInsert.json"}]}
+{
+  "Credentials": {
+    "Betriebsnummer": "09 000 000 0015",
+    "MitBenutzer": "0",
+    "PIN": "900015",
+    "Timeout": 20
+  },
+  "JobInfos": [
+    {
+      "Action": "Get",
+      "Entity": "Geburt",
+      "FileName": "TaskInfos\\GeburtRequest.txt"     
+    },
+    {
+      "Action": "Get",
+      "Entity": "Zugang",
+      "FileName": "TaskInfos\\ZugangRequest.txt"
+    }
+  ]
+}

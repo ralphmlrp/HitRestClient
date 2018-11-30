@@ -24,6 +24,7 @@ namespace HIT.REST.Client
         public string Betriebsnummer { get; set; }
         public string MitBenutzer { get; set; }
         public string PIN { get; set; }
+        public int Timeout { get; set; }
     }
 
     public class JobInfo

@@ -63,9 +63,12 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="packages.config" />
+    <None Include="TaskInfos\jobSample.json" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
-    <Folder Include="TaskInfos\" />
+    <Content Include="TaskInfos\ZugangRequest.txt" />
+    <Content Include="TaskInfos\GeburtRequest.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
