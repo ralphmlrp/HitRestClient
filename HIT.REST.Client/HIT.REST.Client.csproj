@@ -31,7 +31,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <StartupObject />
+    <StartupObject>HIT.REST.Client.Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -56,19 +56,19 @@
     <Compile Include="HitSettingsSection.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TaskInfo.cs" />
+    <Compile Include="JobInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">
       <SubType>Designer</SubType>
     </None>
     <None Include="packages.config" />
-    <None Include="TaskInfos\jobSample.json" />
+    <None Include="Daten\JobSample.json" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <Content Include="TaskInfos\ZugangRequest.txt" />
-    <Content Include="TaskInfos\GeburtRequest.txt" />
+    <Content Include="Daten\ZugangRequest.txt" />
+    <Content Include="Daten\GeburtRequest.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

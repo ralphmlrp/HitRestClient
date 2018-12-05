@@ -5,16 +5,16 @@
     "PIN": "900015",
     "Timeout": 20
   },
-  "JobInfos": [
+  "TaskInfos": [
     {
-      "Action": "Get",
+      "Action": "IS",
       "Entity": "Geburt",
-      "FileName": "TaskInfos\\GeburtRequest.txt"     
+      "FileName": "Daten\\GeburtInsert.json"
     },
     {
-      "Action": "Get",
+      "Action": "IS",
       "Entity": "Zugang",
-      "FileName": "TaskInfos\\ZugangRequest.txt"
+      "FileName": "Daten\\ZugangInsert.json"
     }
   ]
 }
