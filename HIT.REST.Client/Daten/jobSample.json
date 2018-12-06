@@ -1,20 +1,20 @@
 {
   "Credentials": {
     "Betriebsnummer": "09 000 000 0015",
-    "MitBenutzer": "0",
-    "PIN": "900015",
-    "Timeout": 20
+    "MitBenutzer":    "0",
+    "PIN":            "900015",
+    "Timeout":        20
   },
-  "TaskInfos": [
+  "Tasks": [
     {
-      "Action": "IS",
-      "Entity": "Geburt",
-      "FileName": "Daten\\GeburtInsert.json"
+      "Action":   "RS",
+      "Entity":   "Geburt",
+      "FileName": "Daten\\GeburtRequest.txt"
     },
     {
-      "Action": "IS",
-      "Entity": "Zugang",
-      "FileName": "Daten\\ZugangInsert.json"
+      "Action":   "RS",
+      "Entity":   "Zugang",
+      "FileName": "Daten\\ZugangRequest.txt"
     }
   ]
 }

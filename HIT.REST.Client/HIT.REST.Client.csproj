@@ -57,7 +57,7 @@
     <Compile Include="HitSettingsSection.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="JobInfo.cs" />
+    <Compile Include="Job.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

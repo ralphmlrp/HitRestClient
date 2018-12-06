@@ -1,6 +1,4 @@
-﻿using HIT.REST.Client;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
@@ -10,134 +8,170 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Xml.Serialization;
 
-namespace HIT.REST.Client
-{
-  enum ClientMode
-  {
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace HIT.REST.Client {
+
+  /// <summary>Art der Autorisierung</summary>
+  enum ClientMode {
+    /// <summary>Anfrage ohne Autorisierung</summary>
     NoAuthorization,
+    /// <summary>Anfrage mit "basic"-Autorisierungskopfzeile in der Form "bnr:mbn:pin"</summary>
     AuthenticationHeader,
+    /// <summary>Anfrage mit eigenen HTTP-Kopfzeilen wie "hit-bnr" etc</summary>
     SelfmadeHeader,
   }
 
-  class Program
-  {
-    //--------------------------------------------------------------------
+
+
+  class Program {
+//--------------------------------------------------------------------
+
     static String testSecret = Guid.NewGuid().ToString().Substring(9, 14);      // Mittelteil aus GUID nehmen   z.B. "45f1-affe-87f3"
-    static ApiInformation apiInfo;
+
+    static ApiInformation info;
+
+//--------------------------------------------------------------------
 
     static void Main(string[] args) {
       try {
-        CreateJobSampleJson();
+        //CreateJson();
 
-        apiInfo = ReadApiInfo();
-        if (apiInfo.SuppressCertificateWarning) {
-          ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
+        // App.config verarbeiten:
+        info = (ApiInformation)ConfigurationManager.GetSection("hitSettings");
+        if (info.SuppressCertificateWarning) {
+          ServicePointManager.ServerCertificateValidationCallback +=  (sender,cert,chain,sslPolicyErrors) => true;
         }
 
-        Stopwatch watch = new Stopwatch();
-        watch.Start();
-        foreach (string jobFileNames in args) {
-          JobInfo job = ReadJobInfo(jobFileNames);
-          Console.WriteLine(job.Credentials.Betriebsnummer);
-          HttpClient client = GetHttpClient(ClientMode.AuthenticationHeader, job.Credentials);
-          watch.Stop();
-          Console.WriteLine($"HttpClient aufgebaut: {watch.ElapsedMilliseconds} ms");
-          if (client == null) {
-            Console.WriteLine("Keine Verbindung möglich!");
-          }
-          else {
-            DoTaks(client, job.TaskInfos);
-          }
+        // die eigentliche Aufgabe erledigen:
+        // die als Parameter angegebenen JSON-Dateien einlesen und HIT-REST-Anfragen stellen
+        run(args);
+      }
+      catch (Exception e) {
+        Console.WriteLine(e.GetType().FullName+": "+e.Message);
+        Exception ie = e.InnerException;
+        int intLevel = 0;
+        while (ie != null)  {
+          intLevel+=2;
+          Console.WriteLine(new String(' ',intLevel)+"^- "+ie.GetType().FullName+": "+ie.Message);
+          ie = ie.InnerException;
         }
+      }
 
-      }
-      catch (Exception ex) {
-        Console.WriteLine(ex.Message);
-        // TODO InnerExceptions rekursiv
-        Console.WriteLine(ex.InnerException?.InnerException?.Message);
-      }
-      pressEnterTo("close console");
+      pressEnterTo("exit");
     }
 
-    private static void DoTaks(HttpClient client, List<TaskInfo> taskInfos) {
+
+
+//--------------------------------------------------------------------
+
+    private static void run(String[] pstrJobFiles) {
       Stopwatch watch = new Stopwatch();
-      foreach (TaskInfo task in taskInfos) {
+
+      foreach (var item in pstrJobFiles) {
+        watch.Start();
+        Job job = ReadJob(item);
+        Console.WriteLine(job.Credentials.Betriebsnummer);
+        HttpClient client = GetHttpClient(ClientMode.AuthenticationHeader, job.Credentials);
+        watch.Stop();
+        if (client == null) {
+          Console.WriteLine($"Keine Verbindung möglich!? (nach {watch.ElapsedMilliseconds}ms)");
+        }
+        else {
+          Console.WriteLine($"HttpClient in {watch.ElapsedMilliseconds}ms aufgebaut");
+          watch.Start();
+          DoTasks(client,job);
+          watch.Stop();
+          Console.WriteLine(Helper.getForNum(job.Tasks.Count,"Ein Task","* Tasks","*")+$" in {watch.ElapsedMilliseconds}ms verarbeitet");
+        }
+      }
+    }
+
+    private static void DoTasks(HttpClient client,Job pobjJob) {
+      List<Task> tasks = pobjJob.Tasks;
+      Stopwatch watch = new Stopwatch();
+      foreach (Task task in tasks) {
         watch.Reset();
         watch.Start();
         switch (task.Action.ToUpper()) {
-          case "GET":
+          case "RS":
+          case "RT":
+          case "RB":
             string condition = File.ReadAllText(task.FileName);
-            GetEntity(client, task.Entity, condition);
+            GetEntity(client,task.Entity,condition);
             break;
           default:
             Console.WriteLine("Not yet implemented!");
             break;
         }
-        Console.WriteLine($"Zeit für job {task.Action} - {task.Entity}: {watch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"Zeit für job \"{task.Action} - {task.Entity}\": {watch.ElapsedMilliseconds}ms");
         watch.Stop();
       }
     }
 
-    static ApiInformation ReadApiInfo() {
-      ApiInformation info = (ApiInformation)ConfigurationManager.GetSection("hitSettings");
-      return info;
-    }
-
-    static JobInfo ReadJobInfo(string jobFilename) {
+    static Job ReadJob(string jobFilename) {
       string text = "";
+
       using (StreamReader reader = new StreamReader(jobFilename)) {
         text = reader.ReadToEnd();
       }
-      JobInfo jobInfo = JsonConvert.DeserializeObject<JobInfo>(text);
-      return jobInfo;
+
+      Job info = JsonConvert.DeserializeObject<Job>(text);
+      return info;
     }
 
-    //--------------------------------------------------------------------
+//--------------------------------------------------------------------
 
-    static void CreateJobSampleJson() {
-      JobInfo info = new JobInfo();
+    static void CreateJson() {
+      Job info = new Job();
       info.Credentials.Betriebsnummer = "09 000 000 0015";
-      info.Credentials.MitBenutzer = "0";
-      info.Credentials.PIN = "900015";
-      info.Credentials.Timeout = 20;
+      info.Credentials.MitBenutzer    = "0";
+      info.Credentials.PIN            = "900015";
+      info.Credentials.Timeout        = 20;
 
-      info.TaskInfos.Add(new TaskInfo() {
-        Action = "IS",
-        Entity = "Geburt",
-        FileName = "Daten\\GeburtInsert.json"
+      info.Tasks.Add(new Task() {
+        Action    = "RS",
+        Entity    = "Geburt",
+        FileName  = "Daten\\GeburtRequest.txt"
       });
 
-      info.TaskInfos.Add(new TaskInfo() {
-        Action = "IS",
-        Entity = "Zugang",
-        FileName = "Daten\\ZugangInsert.json"
+      info.Tasks.Add(new Task() {
+        Action    = "RS",
+        Entity    = "Zugang",
+        FileName  = "Daten\\ZugangRequest.txt"
       });
 
       string jsonJob = JsonConvert.SerializeObject(info);
-      File.WriteAllText("Daten\\JobSample.json", jsonJob);
+      File.WriteAllText("Daten\\jobSample.json",jsonJob);
     }
 
-    
-    static void CreateApiInfoPartXml() {
+    static void CreateXml() {
       ApiInformation info = new ApiInformation();
-      info.Prefix = "/api/mlrp";
+      info.BasePath = "/api/mlrp/";
       info.SuppressCertificateWarning = true;
-      info.BaseUrls = new List<string>()
-      {
-          "https://www.hi-tier.bybn.de/",
-          "https://www-dev.hi-tier.bybn.de/",
-          "http://localhost:5592/"
+      info.BaseUrls = new List<string>()  {
+        "https://www.hi-tier.bybn.de/",
+        "https://www-dev.hi-tier.bybn.de/",
+        "http://localhost:5592/"
       };
 
       XmlSerializer serializer = new XmlSerializer(typeof(ApiInformation));
-      using (FileStream fs = new FileStream("C:\\temp\\apiInfo.txt", System.IO.FileMode.Create)) {
-        serializer.Serialize(fs, info);
+      using (FileStream fs = new FileStream("C:\\temp\\apiInfo.txt",System.IO.FileMode.Create)) {
+        serializer.Serialize(fs,info);
       }
+
+
+
+      //start(args);
+
+
+      pressEnterTo("quit");
     }
 
 
 
-    //--------------------------------------------------------------------
+//--------------------------------------------------------------------
 
     //private static void start(string[] args)
     //{
@@ -161,20 +195,23 @@ namespace HIT.REST.Client
     //    client = GetHttpClient(ClientMode.SelfmadeHeader);
 
     //    GetGeburten(client);
+
     //}
 
 
 
-    //--------------------------------------------------------------------
+//--------------------------------------------------------------------
 
 
-    private static void GetEntity(HttpClient client, string entity, string condition) {
+    private static void GetEntity(HttpClient client,string entity,string condition) {
       // condition =bnr15;=;090000000001
-      HttpResponseMessage message = client.GetAsync($"{apiInfo.Prefix}/{entity}?condition={condition}").Result;
+      String strUrl = $"{info.BasePath}{entity}?condition={condition}";
+      HttpResponseMessage message = client.GetAsync(strUrl).Result;
       try {
         if (wasSuccessfulResponse(message)) {
 
           // Console.WriteLine(message.Content.ReadAsStringAsync().Result);
+
 
           // es kommt zwar als HitDataTree zurück, kann aber nicht als solches deserialisiert werden
           // Daher klassisch mit Dictionary:
@@ -182,13 +219,18 @@ namespace HIT.REST.Client
 
           // ein vergebenes/übergebenes Secret dem Client geben
           client.DefaultRequestHeaders.Remove("hit-secret");                              // Name siehe   MlrpRestController.HTTP_HEADER_AUTH_SECRET
-          client.DefaultRequestHeaders.Add("hit-secret", (String)response["cache_secret"]);
-
-          foreach (KeyValuePair<String, object> item in response) {
+          client.DefaultRequestHeaders.Add("hit-secret",(String)response["cache_secret"]);
+          /*
+          foreach (KeyValuePair<String,object> item in response) {
             Console.WriteLine("Type " + item.Key + "\t=> " + item.Value?.GetType().FullName);
-            //      Console.WriteLine($"{item.Value["LOM"]} - {item["BNR15"]} - {item["GEB_DATR"]} - {item["SYS_BIS"]}");
+            //  Console.WriteLine($"{item.Value["LOM"]} - {item["BNR15"]} - {item["GEB_DATR"]} - {item["SYS_BIS"]}");
           }
-          //Console.WriteLine($"{response["daten"]} Datenzeile(n) erhalten nach {response.DurationFmt}");
+          */
+          JObject objDaten = (JObject)response["daten"];
+          //Console.WriteLine(objDaten);
+          JArray objDatenDerEntity = (JArray)objDaten[entity];
+
+          Console.WriteLine($"{objDatenDerEntity.Count} Datenzeile(n) für {entity} erhalten nach {((JObject)response["statistik"])["dauer_fmt"]}");
 
           //Request: http://localhost:5592/api/mlrp/Geburt?condition=bnr15;=;090000000001
           //Type cache_secret       => System.String
@@ -209,6 +251,7 @@ namespace HIT.REST.Client
 
     private static bool wasSuccessfulResponse(HttpResponseMessage message) {
       Console.WriteLine("Request: " + message.RequestMessage.RequestUri.AbsoluteUri);
+
       string responseString = message.Content.ReadAsStringAsync().Result;
       if (message.IsSuccessStatusCode) {
         //        Console.WriteLine("-> "+responseString);
@@ -216,14 +259,17 @@ namespace HIT.REST.Client
       else {
         Console.WriteLine("FAILED -> " + responseString);
       }
+
       return message.IsSuccessStatusCode;
     }
 
 
-    //--------------------------------------------------------------------
 
-    private static HttpClient GetHttpClient(ClientMode penumClient, Credentials credentials) {
-      foreach (var url in apiInfo.BaseUrls) {
+//--------------------------------------------------------------------
+
+    private static HttpClient GetHttpClient(ClientMode penumClient,Credentials credentials) {
+      foreach (var url in info.BaseUrls) {
+        Console.WriteLine($"GetHttpClient() mit {url} ...");
 
         HttpClient client = new HttpClient();
         client.BaseAddress = new Uri(url);
@@ -231,16 +277,16 @@ namespace HIT.REST.Client
 
         switch (penumClient) {
           case ClientMode.AuthenticationHeader:
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("basic", $"{credentials.Betriebsnummer}:{credentials.MitBenutzer}:{credentials.PIN}");
-            client.DefaultRequestHeaders.Add("hit-timeout", credentials.Timeout.ToString());
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("basic",$"{credentials.Betriebsnummer}:{credentials.MitBenutzer}:{credentials.PIN}");
+            client.DefaultRequestHeaders.Add("hit-timeout",credentials.Timeout.ToString());
             break;
 
           case ClientMode.SelfmadeHeader:
-            client.DefaultRequestHeaders.Add("hit-bnr", credentials.Betriebsnummer);
-            client.DefaultRequestHeaders.Add("hit-mbn", credentials.MitBenutzer);
-            client.DefaultRequestHeaders.Add("hit-pin", credentials.PIN);
-            client.DefaultRequestHeaders.Add("hit-secret", testSecret);
-            client.DefaultRequestHeaders.Add("hit-timeout", credentials.Timeout.ToString());
+            client.DefaultRequestHeaders.Add("hit-bnr",credentials.Betriebsnummer);
+            client.DefaultRequestHeaders.Add("hit-mbn",credentials.MitBenutzer);
+            client.DefaultRequestHeaders.Add("hit-pin",credentials.PIN);
+            client.DefaultRequestHeaders.Add("hit-secret",testSecret);
+            client.DefaultRequestHeaders.Add("hit-timeout",credentials.Timeout.ToString());
             break;
 
           case ClientMode.NoAuthorization:
@@ -250,16 +296,19 @@ namespace HIT.REST.Client
         }
 
         try {
-          HttpResponseMessage message = client.GetAsync(apiInfo.Prefix).Result;
+          HttpResponseMessage message = client.GetAsync(info.BasePath).Result;
           message.EnsureSuccessStatusCode();
           if (message.Content.ReadAsAsync<bool>().Result) {
-            System.Diagnostics.Debug.WriteLine("HttpClient:\n" + client.DefaultRequestHeaders.ToString());
+            Console.WriteLine("-> verbunden!");
             return client;
           }
         }
-        catch (Exception) {
+        catch (Exception e) {
+            Console.WriteLine("-> Fehler: "+e.Message);
         }
       }
+
+
       return null;
     }
 
@@ -268,6 +317,8 @@ namespace HIT.REST.Client
       Console.ReadLine();
     }
 
-    //--------------------------------------------------------------------
+
+
+//--------------------------------------------------------------------
   }
 }
