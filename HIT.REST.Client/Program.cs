@@ -27,7 +27,8 @@ namespace HIT.REST.Client
 
     static void Main(string[] args) {
       try {
-        CreateJobSampleJson();
+        // optional, wenn JSON-Struktur geändert, und Beispiel-Datei neu erzeugt werden soll
+        // CreateJobSampleJson();
 
         apiInfo = ReadApiInfo();
         if (apiInfo.SuppressCertificateWarning) {
@@ -36,7 +37,10 @@ namespace HIT.REST.Client
 
         Stopwatch watch = new Stopwatch();
         watch.Start();
+        int idx = 0;
         foreach (string jobFileNames in args) {
+          Console.WriteLine($"{args[idx++]} args processed");
+
           JobInfo job = ReadJobInfo(jobFileNames);
           Console.WriteLine(job.Credentials.Betriebsnummer);
           HttpClient client = GetHttpClient(ClientMode.AuthenticationHeader, job.Credentials);
@@ -56,6 +60,7 @@ namespace HIT.REST.Client
         // TODO InnerExceptions rekursiv
         Console.WriteLine(ex.InnerException?.InnerException?.Message);
       }
+      Console.WriteLine($"{args.Length} args processed");
       pressEnterTo("close console");
     }
 
@@ -120,7 +125,7 @@ namespace HIT.REST.Client
     
     static void CreateApiInfoPartXml() {
       ApiInformation info = new ApiInformation();
-      info.Prefix = "/api/mlrp";
+      info.BasePath = "/api/mlrp";
       info.SuppressCertificateWarning = true;
       info.BaseUrls = new List<string>()
       {
@@ -170,7 +175,7 @@ namespace HIT.REST.Client
 
     private static void GetEntity(HttpClient client, string entity, string condition) {
       // condition =bnr15;=;090000000001
-      HttpResponseMessage message = client.GetAsync($"{apiInfo.Prefix}/{entity}?condition={condition}").Result;
+      HttpResponseMessage message = client.GetAsync($"{apiInfo.BasePath}/{entity}?condition={condition}").Result;
       try {
         if (wasSuccessfulResponse(message)) {
 
@@ -224,6 +229,7 @@ namespace HIT.REST.Client
 
     private static HttpClient GetHttpClient(ClientMode penumClient, Credentials credentials) {
       foreach (var url in apiInfo.BaseUrls) {
+        Console.WriteLine($"Connect to Url: {url} BasePath: {apiInfo.BasePath}");
 
         HttpClient client = new HttpClient();
         client.BaseAddress = new Uri(url);
@@ -250,7 +256,7 @@ namespace HIT.REST.Client
         }
 
         try {
-          HttpResponseMessage message = client.GetAsync(apiInfo.Prefix).Result;
+          HttpResponseMessage message = client.GetAsync(apiInfo.BasePath).Result;
           message.EnsureSuccessStatusCode();
           if (message.Content.ReadAsAsync<bool>().Result) {
             System.Diagnostics.Debug.WriteLine("HttpClient:\n" + client.DefaultRequestHeaders.ToString());
