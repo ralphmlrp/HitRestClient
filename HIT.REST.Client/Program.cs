@@ -8,8 +8,12 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Xml.Serialization;
 
+using HIT.REST.Client.config;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+
+
 
 namespace HIT.REST.Client {
 
@@ -30,7 +34,7 @@ namespace HIT.REST.Client {
 
     static String testSecret = Guid.NewGuid().ToString().Substring(9, 14);      // Mittelteil aus GUID nehmen   z.B. "45f1-affe-87f3"
 
-    static ApiInformation info;
+    static HitSettingsSection   config;
 
 //--------------------------------------------------------------------
 
@@ -38,17 +42,24 @@ namespace HIT.REST.Client {
       try {
         //CreateJson();
 
-        // App.config verarbeiten:
-        info = (ApiInformation)ConfigurationManager.GetSection("hitSettings");
-        if (info.SuppressCertificateWarning) {
+        // app.config verarbeiten:
+        config = (HitSettingsSection)ConfigurationManager.GetSection("hitSettings");
+
+        if (config.CertificateWarning.ignore) {
+          // richte Callback ein, der bei der ServerCertificateValidation
+          // immer true liefert (also auch, wenn das Zertifikat einen Fehler liefert)
           ServicePointManager.ServerCertificateValidationCallback +=  (sender,cert,chain,sslPolicyErrors) => true;
         }
 
+        Console.WriteLine("Base path: "+config.BasePath.path);
+
         // die eigentliche Aufgabe erledigen:
         // die als Parameter angegebenen JSON-Dateien einlesen und HIT-REST-Anfragen stellen
-        run(args);
+//        run(args);
       }
       catch (Exception e) {
+Console.WriteLine(e.ToString());
+
         Console.WriteLine(e.GetType().FullName+": "+e.Message);
         Exception ie = e.InnerException;
         int intLevel = 0;
@@ -205,7 +216,7 @@ namespace HIT.REST.Client {
 
     private static void GetEntity(HttpClient client,string entity,string condition) {
       // condition =bnr15;=;090000000001
-      String strUrl = $"{info.BasePath}{entity}?condition={condition}";
+      String strUrl = $"{config.BasePath}{entity}?condition={condition}";
       HttpResponseMessage message = client.GetAsync(strUrl).Result;
       try {
         if (wasSuccessfulResponse(message)) {
@@ -268,11 +279,11 @@ namespace HIT.REST.Client {
 //--------------------------------------------------------------------
 
     private static HttpClient GetHttpClient(ClientMode penumClient,Credentials credentials) {
-      foreach (var url in info.BaseUrls) {
-        Console.WriteLine($"GetHttpClient() mit {url} ...");
+      foreach (BaseUrlElement element in config.BaseUrls) {
+        Console.WriteLine($"GetHttpClient() mit {element.SchemeAndDomainUrl} ...");
 
         HttpClient client = new HttpClient();
-        client.BaseAddress = new Uri(url);
+        client.BaseAddress = new Uri(element.SchemeAndDomainUrl);
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         switch (penumClient) {
@@ -296,7 +307,7 @@ namespace HIT.REST.Client {
         }
 
         try {
-          HttpResponseMessage message = client.GetAsync(info.BasePath).Result;
+          HttpResponseMessage message = client.GetAsync(config.BasePath.path).Result;
           message.EnsureSuccessStatusCode();
           if (message.Content.ReadAsAsync<bool>().Result) {
             Console.WriteLine("-> verbunden!");

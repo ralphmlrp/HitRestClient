@@ -8,6 +8,7 @@ namespace HIT.REST.Client {
   /// <summary>
   /// Beschreibt eine 
   /// </summary>
+  [Obsolete("Since HitSettingsSection derived from IConfigurationSectionHandler is obsolete, this class is obsolete too. See new HitSettingsSection derived from ConfigurationSection")]
   public class ApiInformation {
 
     /// <summary>
