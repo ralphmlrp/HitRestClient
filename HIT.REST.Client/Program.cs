@@ -6,9 +6,10 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Xml.Serialization;
+using System.Text;
 
 using HIT.REST.Client.config;
+using HIT.REST.Client.Hit;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,16 +18,6 @@ using Newtonsoft.Json.Linq;
 
 namespace HIT.REST.Client {
 
-  /// <summary>Art der Autorisierung</summary>
-  enum ClientMode {
-    /// <summary>Anfrage ohne Autorisierung</summary>
-    NoAuthorization,
-    /// <summary>Anfrage mit "basic"-Autorisierungskopfzeile in der Form "bnr:mbn:pin"</summary>
-    AuthenticationHeader,
-    /// <summary>Anfrage mit eigenen HTTP-Kopfzeilen wie "hit-bnr" etc</summary>
-    SelfmadeHeader,
-  }
-
 
 
   class Program {
@@ -34,42 +25,62 @@ namespace HIT.REST.Client {
 
     static String testSecret = Guid.NewGuid().ToString().Substring(9, 14);      // Mittelteil aus GUID nehmen   z.B. "45f1-affe-87f3"
 
-    static HitSettingsSection   config;
+    internal static HitSettingsSection    staticConfig;
+
+    internal static TextWriter            staticLogfile;
+
+
 
 //--------------------------------------------------------------------
 
     static void Main(string[] args) {
+
+      //URI objTest = new URI();
+      //objTest.Host = "localhost";
+      //objTest.BasePath = "der/hier/ist/unveränderlich";
+      //objTest.RestPath = "ZUGANG";
+      //objTest.Query.Add("bnr","09 000 000 0001");
+      //objTest.Query.Add("pin","900001");
+      //objTest.Query.Add("timeout","11");
+
+      //log(objTest);
+      //pressEnterTo("exit");
+      //return;
+
       try {
-        //CreateJson();
+        // eigene Section aus app.config einlesen
+        staticConfig = (HitSettingsSection)ConfigurationManager.GetSection("hitSettings");
 
-        // app.config verarbeiten:
-        config = (HitSettingsSection)ConfigurationManager.GetSection("hitSettings");
+        log("Available base URLs:");
+        foreach (BaseUrlElement path in staticConfig.BaseUrls) log("* "+path.SchemeAndDomainUrl);
+        log("Base path          : "+staticConfig.BasePath.path);
+        log("Certificate warning: "+(staticConfig.CertificateWarning.ignore ? "suppress" : "alert"));
+        log();
 
-        if (config.CertificateWarning.ignore) {
+        if (staticConfig.CertificateWarning.ignore) {
           // richte Callback ein, der bei der ServerCertificateValidation
           // immer true liefert (also auch, wenn das Zertifikat einen Fehler liefert)
           ServicePointManager.ServerCertificateValidationCallback +=  (sender,cert,chain,sslPolicyErrors) => true;
         }
 
-        Console.WriteLine("Base path: "+config.BasePath.path);
-
         // die eigentliche Aufgabe erledigen:
         // die als Parameter angegebenen JSON-Dateien einlesen und HIT-REST-Anfragen stellen
-//        run(args);
+        run(args);
       }
       catch (Exception e) {
-Console.WriteLine(e.ToString());
+//Console.WriteLine(e.ToString());
 
-        Console.WriteLine(e.GetType().FullName+": "+e.Message);
+        log(e.GetType().FullName+": "+e.Message);
         Exception ie = e.InnerException;
         int intLevel = 0;
-        while (ie != null)  {
+        while (ie != null) {
           intLevel+=2;
-          Console.WriteLine(new String(' ',intLevel)+"^- "+ie.GetType().FullName+": "+ie.Message);
+          log(new String(' ',intLevel)+"^- "+ie.GetType().FullName+": "+ie.Message);
           ie = ie.InnerException;
         }
       }
 
+      closeLog();
       pressEnterTo("exit");
     }
 
@@ -77,146 +88,183 @@ Console.WriteLine(e.ToString());
 
 //--------------------------------------------------------------------
 
+    /// <summary>
+    /// We only accept job filepaths as CLI parameters.
+    /// </summary>
+    /// <param name="pstrJobFiles"></param>
     private static void run(String[] pstrJobFiles) {
-      Stopwatch watch = new Stopwatch();
-
-      foreach (var item in pstrJobFiles) {
-        watch.Start();
-        Job job = ReadJob(item);
-        Console.WriteLine(job.Credentials.Betriebsnummer);
-        HttpClient client = GetHttpClient(ClientMode.AuthenticationHeader, job.Credentials);
-        watch.Stop();
-        if (client == null) {
-          Console.WriteLine($"Keine Verbindung möglich!? (nach {watch.ElapsedMilliseconds}ms)");
-        }
-        else {
-          Console.WriteLine($"HttpClient in {watch.ElapsedMilliseconds}ms aufgebaut");
-          watch.Start();
-          DoTasks(client,job);
-          watch.Stop();
-          Console.WriteLine(Helper.getForNum(job.Tasks.Count,"Ein Task","* Tasks","*")+$" in {watch.ElapsedMilliseconds}ms verarbeitet");
-        }
+      foreach (String strJobFile in pstrJobFiles) {
+        runJob(strJobFile);
       }
     }
 
-    private static void DoTasks(HttpClient client,Job pobjJob) {
-      List<Task> tasks = pobjJob.Tasks;
-      Stopwatch watch = new Stopwatch();
-      foreach (Task task in tasks) {
-        watch.Reset();
-        watch.Start();
-        switch (task.Action.ToUpper()) {
-          case "RS":
-          case "RT":
-          case "RB":
-            string condition = File.ReadAllText(task.FileName);
-            GetEntity(client,task.Entity,condition);
+
+
+    private static int staticJobCounter = 0;
+
+    /// <summary>
+    /// Führe den Job aus, indem seine Tasks der Reihe nach an HIT3-REST gesendet werden.
+    /// </summary>
+    /// <param name="pstrJobPath"></param>
+    public static void runJob(String pstrJobPath) {
+      // deserialize Job description
+      Job objJob = Job.fromFile(pstrJobPath);
+
+      // vorbereiten
+      Stopwatch total = new Stopwatch();
+
+      Credentials objCred = objJob.Credentials;
+
+      staticJobCounter++;
+      tee(new String('-',16));
+      tee("Job     : #"+staticJobCounter+" mit "+objCred.getUser());
+      tee("Login   : "+objCred.getUser());
+      tee("AuthMode: "+Enum.GetName(typeof(AuthMode),objCred.AuthenticationMode));
+      tee("Tasks   : "+Helper.getForNum(objJob.Tasks.Count,"eine Anfrage","* Anfragen","*"));
+      tee(new String('-',16));
+
+      // unseren RestClient vorbereiten, der sich um die Kommunikation mit HIT3-REST kümmert
+      RestClient objClient = new RestClient(staticConfig);
+
+      // jetzt einfach einen Task nach dem anderen abarbeiten
+      int intTaskCounter = 0;
+      foreach (Task task in objJob.Tasks) {
+        intTaskCounter++;
+
+        String strDisplay = String.IsNullOrWhiteSpace(task.Description) ? "mit "+task.GetHitCommand()+":"+task.Entity : task.Description;
+        tee("");
+        tee("Task "+strDisplay);
+
+        switch (task.GetVerb()) {
+          case RestClient.Verb.Get:
+            processGet(task,objClient,objCred);
+            break;
+          case RestClient.Verb.Put:
+            break;
+          case RestClient.Verb.Post:
+            break;
+          case RestClient.Verb.Delete:
             break;
           default:
-            Console.WriteLine("Not yet implemented!");
             break;
         }
-        Console.WriteLine($"Zeit für job \"{task.Action} - {task.Entity}\": {watch.ElapsedMilliseconds}ms");
-        watch.Stop();
+
+
+
       }
     }
 
-    static Job ReadJob(string jobFilename) {
-      string text = "";
-
-      using (StreamReader reader = new StreamReader(jobFilename)) {
-        text = reader.ReadToEnd();
-      }
-
-      Job info = JsonConvert.DeserializeObject<Job>(text);
-      return info;
-    }
 
 //--------------------------------------------------------------------
 
-    static void CreateJson() {
-      Job info = new Job();
-      info.Credentials.Betriebsnummer = "09 000 000 0015";
-      info.Credentials.MitBenutzer    = "0";
-      info.Credentials.PIN            = "900015";
-      info.Credentials.Timeout        = 20;
+    private static void processGet(Task pobjTask,RestClient pobjClient,Credentials pobjCred)  {
+      Stopwatch watch = new Stopwatch();
+      watch.Start();
 
-      info.Tasks.Add(new Task() {
-        Action    = "RS",
-        Entity    = "Geburt",
-        FileName  = "Daten\\GeburtRequest.txt"
-      });
+      // URI bauen
+      URI objRequest = pobjTask.CreateURI(pobjClient,pobjCred); // der Task braucht den Client, damit ggf. ein Secret übernommen werden kann
 
-      info.Tasks.Add(new Task() {
-        Action    = "RS",
-        Entity    = "Zugang",
-        FileName  = "Daten\\ZugangRequest.txt"
-      });
+      // bei GET arbeiten wir die Input-Datei Zeile für Zeile ab und setzen ein RS ab
 
-      string jsonJob = JsonConvert.SerializeObject(info);
-      File.WriteAllText("Daten\\jobSample.json",jsonJob);
+
+      // CONTINUE HERE
+
+        HttpResponseMessage objResponse = pobjClient.send(objRequest);
+        if (objResponse == null) {
+          tee($"-> Senden nach {watch.ElapsedMilliseconds}ms fehlgeschlagen!?");
+        }
+        else {
+          tee($"-> Antwort nach  {watch.ElapsedMilliseconds}ms");
+
+          // analyze objResponse
+          // TODO
+
+        }
+
+      watch.Stop();
+
     }
 
-    static void CreateXml() {
-      ApiInformation info = new ApiInformation();
-      info.BasePath = "/api/mlrp/";
-      info.SuppressCertificateWarning = true;
-      info.BaseUrls = new List<string>()  {
-        "https://www.hi-tier.bybn.de/",
-        "https://www-dev.hi-tier.bybn.de/",
-        "http://localhost:5592/"
-      };
 
-      XmlSerializer serializer = new XmlSerializer(typeof(ApiInformation));
-      using (FileStream fs = new FileStream("C:\\temp\\apiInfo.txt",System.IO.FileMode.Create)) {
-        serializer.Serialize(fs,info);
+    private static void doQuery(HttpClient client,Credentials pobjLogin,Task pobjTask) {
+      // erst mal alle Zeilen aus der Inputdatei lesen
+      List<String> astrLines = new List<String>(File.ReadAllLines(pobjTask.InputPath));
+      // es müssen mind. 2 sein
+      if (astrLines.Count < 2) {
+        writeFailure(pobjTask,"Datei '"+pobjTask.InputPath+"' für Abfrage enthält zuwenig Zeilen!");
+        return;
       }
 
+      string strCond =  astrLines[0]; astrLines.RemoveAt(0);
+
+      // URL
+      //      String strURL = po
+
+      GetEntity(client,pobjTask.Entity,strCond);
 
 
-      //start(args);
 
-
-      pressEnterTo("quit");
     }
 
 
 
 //--------------------------------------------------------------------
 
-    //private static void start(string[] args)
-    //{
-    //    HttpClient client;
+    /// <summary>
+    /// Schreibe eine Fehlermeldung in die gegebene Ausgabedatei oder
+    /// falls <see cref="Task"/> unbekannt oder Ausgabedatei nicht
+    /// schreibbar, in die Console.
+    /// </summary>
+    private static void writeFailure(Task pobjTask,String pstrError) {
+      if (pobjTask != null) {
+        // bereite Fehlermeldung als JSON vor
+        String strContent = JsonConvert.SerializeObject(new { message = pstrError });
+        // schreibe sie in OutputFile
+        try {
+          File.WriteAllText(pobjTask.OutputPath,strContent);
+          return;
+        }
+        catch (Exception) {
+          // fehlgeschlagen, unten weitermachen
+        }
+      }
 
-    //    // Test ohne Auth:
-    //    client = GetHttpClient(ClientMode.NoAuthorization);
+      // hier angekommen war Schreiben nicht möglich, also ab in die Console
+      Console.WriteLine("FEHLER: "+pstrError);
+    }
 
-    //    GetGeburten(client);
+    /*
+          private static void start(string[] args) {
+            HttpClient client;
 
-    //    pressEnterTo("continue with Authentication header");
+            // Test ohne Auth:
+            client = GetHttpClient(ClientMode.NoAuthorization);
 
-    //    // Test mit Auth-Header:
-    //    client = GetHttpClient(ClientMode.AuthenticationHeader);
+            GetGeburten(client);
 
-    //    GetGeburten(client);
+            pressEnterTo("continue with Authentication header");
 
-    //    pressEnterTo("continue with selfmade header");
+            // Test mit Auth-Header:
+            client = GetHttpClient(ClientMode.AuthenticationHeader);
 
-    //    // Test ohne Auth:
-    //    client = GetHttpClient(ClientMode.SelfmadeHeader);
+            GetGeburten(client);
 
-    //    GetGeburten(client);
+            pressEnterTo("continue with selfmade header");
 
-    //}
+            // Test ohne Auth:
+            client = GetHttpClient(ClientMode.SelfmadeHeader);
 
+            GetGeburten(client);
 
+          }
+    */
 
 //--------------------------------------------------------------------
 
 
     private static void GetEntity(HttpClient client,string entity,string condition) {
       // condition =bnr15;=;090000000001
-      String strUrl = $"{config.BasePath}{entity}?condition={condition}";
+      String strUrl = $"{staticConfig.BasePath}{entity}?condition={condition}";
       HttpResponseMessage message = client.GetAsync(strUrl).Result;
       try {
         if (wasSuccessfulResponse(message)) {
@@ -277,37 +325,38 @@ Console.WriteLine(e.ToString());
 
 
 //--------------------------------------------------------------------
-
-    private static HttpClient GetHttpClient(ClientMode penumClient,Credentials credentials) {
-      foreach (BaseUrlElement element in config.BaseUrls) {
+/*
+    private static HttpClient GetHttpClient(Credentials credentials) {
+      foreach (BaseUrlElement element in staticConfig.BaseUrls) {
         Console.WriteLine($"GetHttpClient() mit {element.SchemeAndDomainUrl} ...");
 
         HttpClient client = new HttpClient();
         client.BaseAddress = new Uri(element.SchemeAndDomainUrl);
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        switch (penumClient) {
-          case ClientMode.AuthenticationHeader:
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("basic",$"{credentials.Betriebsnummer}:{credentials.MitBenutzer}:{credentials.PIN}");
+        switch (credentials.AuthenticationMode) {
+          case AuthMode.AuthenticationHeader:
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("basic",$"{credentials.Betriebsnummer}:{credentials.Mitbenutzer}:{credentials.PIN}");
             client.DefaultRequestHeaders.Add("hit-timeout",credentials.Timeout.ToString());
             break;
 
-          case ClientMode.SelfmadeHeader:
+          case AuthMode.SelfmadeHeader:
             client.DefaultRequestHeaders.Add("hit-bnr",credentials.Betriebsnummer);
-            client.DefaultRequestHeaders.Add("hit-mbn",credentials.MitBenutzer);
+            client.DefaultRequestHeaders.Add("hit-mbn",credentials.Mitbenutzer);
             client.DefaultRequestHeaders.Add("hit-pin",credentials.PIN);
             client.DefaultRequestHeaders.Add("hit-secret",testSecret);
             client.DefaultRequestHeaders.Add("hit-timeout",credentials.Timeout.ToString());
             break;
 
-          case ClientMode.NoAuthorization:
+          case AuthMode.NoAuth:
           default:
             // keine extra Header
+            // bei AuthMode.QueryString müssen die zusätzlich zur Anfrage
             break;
         }
 
         try {
-          HttpResponseMessage message = client.GetAsync(config.BasePath.path).Result;
+          HttpResponseMessage message = client.GetAsync(staticConfig.BasePath.path).Result;
           message.EnsureSuccessStatusCode();
           if (message.Content.ReadAsAsync<bool>().Result) {
             Console.WriteLine("-> verbunden!");
@@ -315,13 +364,70 @@ Console.WriteLine(e.ToString());
           }
         }
         catch (Exception e) {
-            Console.WriteLine("-> Fehler: "+e.Message);
+          Console.WriteLine("-> Fehler: "+e.Message);
         }
       }
 
 
       return null;
     }
+*/
+
+
+//--------------------------------------------------------------------
+
+    public static void log() {
+      log("");
+    }
+    public static void log(object anything) {
+      log(anything == null ? "null" : anything.ToString());
+    }
+    public static void log(String pstrMsg,bool pboolFileOnly = false) {
+      if (staticLogfile == null) {
+        String strDelim = new String('-',60);
+        try {
+          staticLogfile = new StreamWriter(staticConfig.LogFile.path,staticConfig.LogFile.append,Encoding.UTF8);
+          staticLogfile.WriteLine(strDelim);
+          staticLogfile.WriteLine("Log start: "+DateTime.Now.ToString("ddd, dd-MMM-yyyy HH:mm:ss"));
+          staticLogfile.WriteLine(strDelim);
+        }
+        catch (Exception e) {
+          staticLogfile = Console.Error;
+          staticLogfile.WriteLine(strDelim);
+          staticLogfile.WriteLine("Could not write to Logfile '"+staticConfig?.LogFile?.path+"'! ("+e+")");
+          staticLogfile.WriteLine(strDelim);
+        }
+      }
+
+      // write
+      if (staticLogfile == Console.Error) {
+        // auf Console nur, wenn gewünscht
+        if (!pboolFileOnly) staticLogfile.WriteLine(pstrMsg);
+      }
+      else {
+        // immer in's Logfile
+        staticLogfile.WriteLine(pstrMsg);
+      }
+    }
+
+    public static void tee(String pstrMsg) {
+      Console.Out.WriteLine(pstrMsg);
+      log(pstrMsg,true);
+    }
+
+
+
+    private static void closeLog() {
+      if (staticLogfile == null) return;
+
+      if (staticLogfile != Console.Error) {
+        staticLogfile.Flush();
+        staticLogfile.Close();
+      }
+      staticLogfile = null;
+    }
+
+
 
     private static void pressEnterTo(String action) {
       Console.WriteLine("Press <Enter> to " + action + " ...");

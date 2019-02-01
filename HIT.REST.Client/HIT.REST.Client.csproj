@@ -44,6 +44,7 @@
     <Reference Include="System.Net.Http.Formatting, Version=5.2.7.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.AspNet.WebApi.Client.5.2.7\lib\net45\System.Net.Http.Formatting.dll</HintPath>
     </Reference>
+    <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -52,10 +53,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="config\ApiInformation_Obsolete.cs" />
+    <Compile Include="config\LogFileElement.cs" />
+    <Compile Include="config\BasePathElement.cs" />
+    <Compile Include="config\CertificateWarningElement.cs" />
+    <Compile Include="config\BaseUrlElement.cs" />
+    <Compile Include="config\BaseUrlsCollection.cs" />
+    <Compile Include="config\obsolete\ApiInformation.cs" />
     <Compile Include="config\HitSettingsSection.cs" />
     <Compile Include="Helper.cs" />
-    <Compile Include="config\HitSettingsSection_Obsolete.cs" />
+    <Compile Include="config\obsolete\HitSettingsSection.cs" />
+    <Compile Include="Hit\RestClient.cs" />
+    <Compile Include="Hit\Task.cs" />
+    <Compile Include="Hit\Credentials.cs" />
+    <Compile Include="Hit\AuthMode.cs" />
+    <Compile Include="Hit\URI.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Job.cs" />
@@ -64,8 +75,8 @@
     <None Include="app.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="Daten\jobSample.json" />
     <None Include="packages.config" />
-    <None Include="Daten\JobSample.json" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

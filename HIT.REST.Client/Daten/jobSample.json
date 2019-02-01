@@ -1,20 +1,26 @@
 {
   "Credentials": {
+    "AuthenticationMode": "QueryString",
     "Betriebsnummer": "09 000 000 0015",
-    "MitBenutzer":    "0",
-    "PIN":            "900015",
-    "Timeout":        20
+    "Mitbenutzer": "0",
+    "PIN": "900015",
+    "Timeout": 20
   },
   "Tasks": [
     {
-      "Action":   "RS",
-      "Entity":   "Geburt",
-      "FileName": "Daten\\GeburtRequest.txt"
+      "Description": "Abfrage Geburten",
+      "Action": "RS",
+      "Subcodes": "H",
+      "Entity": "Geburt",
+      "InputPath": "Daten\\GeburtRequest.txt",
+      "OutputPath": "Daten\\GeburtResponse.txt"
     },
     {
-      "Action":   "RS",
-      "Entity":   "Zugang",
-      "FileName": "Daten\\ZugangRequest.txt"
+      "Description": "Abfrage Zugänge",
+      "Action": "RS",
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangRequest.txt",
+      "OutputPath": "Daten\\ZugangResponse.txt"
     }
   ]
 }

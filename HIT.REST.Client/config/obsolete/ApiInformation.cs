@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 
 
-namespace HIT.REST.Client {
+namespace HIT.REST.Client.config.obsolete {
 
   /// <summary>
   /// Beschreibt eine 

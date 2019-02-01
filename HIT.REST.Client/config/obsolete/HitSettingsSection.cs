@@ -5,7 +5,7 @@ using System.Xml.Serialization;
 
 
 
-namespace HIT.REST.Client.config {
+namespace HIT.REST.Client.config.obsolete {
 
   /// <summary>
   /// <para>
