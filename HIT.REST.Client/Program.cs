@@ -52,7 +52,7 @@ namespace HIT.REST.Client {
         staticConfig = (HitSettingsSection)ConfigurationManager.GetSection("hitSettings");
 
         log("Available base URLs:");
-        foreach (BaseUrlElement path in staticConfig.BaseUrls) log("* "+path.SchemeAndDomainUrl);
+        foreach (BaseUrlElement path in staticConfig.BaseUrls) log("* "+path.BaseUrl);
         log("Base path          : "+staticConfig.BasePath.path);
         log("Certificate warning: "+(staticConfig.CertificateWarning.ignore ? "suppress" : "alert"));
         log();
@@ -68,7 +68,7 @@ namespace HIT.REST.Client {
         run(args);
       }
       catch (Exception e) {
-//Console.WriteLine(e.ToString());
+Console.WriteLine(e.ToString());
 
         log(e.GetType().FullName+": "+e.Message);
         Exception ie = e.InnerException;
@@ -93,10 +93,68 @@ namespace HIT.REST.Client {
     /// </summary>
     /// <param name="pstrJobFiles"></param>
     private static void run(String[] pstrJobFiles) {
+      if (!testServices())  return;
+
       foreach (String strJobFile in pstrJobFiles) {
         runJob(strJobFile);
       }
     }
+
+
+
+    /// <summary>
+    /// Finde den HIT3-REST-Service, der auf unsere Anfragen reagieren soll
+    /// </summary>
+    /// <returns></returns>
+    private static bool testServices() {
+
+      // unseren RestClient vorbereiten, der sich um die Kommunikation mit HIT3-REST kümmert
+      RestClient          objClient   = new RestClient(staticConfig);
+      HttpResponseMessage objResponse = null;
+
+      while (objResponse == null) {
+        // der Client gibt die Basis-URL je nach AuthenticationMode vor
+        URI objRequest = objClient.CreateURI();
+        // gibt's keine URI, ist kein Client (und somit Service) verfügbar
+        if (objRequest == null) break;
+
+        // die URI reicht schon für eine Test-Anfrage
+        log("Anfrage an "+objRequest+":");
+        Dictionary<String,Object> objContent = objClient.send(objRequest,out objResponse);
+        if (objResponse == null)  {
+          // der Service reagierte nicht, den nächsten versuchen
+          log("-> keine Reaktion!");
+          objClient.forceNextHost();
+          continue;
+        }
+
+        // es kam eine Antwort zurück
+        if (objResponse.IsSuccessStatusCode)  {
+          // Kommt da auch die Versionsnummer zurück?
+          try {
+            JArray  fehlerliste = (JArray)objContent["Fehlerliste"];
+            JObject firstError  = (JObject)fehlerliste[0];
+            String  strMsg      = (String)firstError["Message"];
+            if (strMsg.StartsWith("Version "))  {
+              // sieht nach korrekter Antwort aus
+              log("-> HIT3 REST "+strMsg+" gefunden");
+              continue;
+            }
+          }
+          catch (Exception) {}
+        }
+        else  {
+          log("-> falscher Request - HTTP Status "+((int)objResponse.StatusCode)+" "+objResponse.ReasonPhrase);
+          objClient.forceNextHost();
+        }
+
+        objResponse = null; // bedeutet: nächsten Host probieren
+      }
+
+      return (objResponse != null);
+    }
+
+
 
 
 
@@ -131,9 +189,9 @@ namespace HIT.REST.Client {
       foreach (Task task in objJob.Tasks) {
         intTaskCounter++;
 
-        String strDisplay = String.IsNullOrWhiteSpace(task.Description) ? "mit "+task.GetHitCommand()+":"+task.Entity : task.Description;
         tee("");
-        tee("Task "+strDisplay);
+        tee("Task "+task.Display);
+        tee("-> Verb "+task.GetVerb());
 
         switch (task.GetVerb()) {
           case RestClient.Verb.Get:
@@ -148,40 +206,143 @@ namespace HIT.REST.Client {
           default:
             break;
         }
+      }
 
-
-
+      // am Ende zusätzlich ein explizites Beenden der REST-Sitzung durchführen
+      // (sofern eine Sitzung existiert)
+      if (objClient.Secret != null) {
+        URI objRequest = objClient.CreateURI(true);
+        objRequest.Query["bnr"] = objCred.Betriebsnummer;
+        if (!String.IsNullOrWhiteSpace(objCred.Mitbenutzer))  {
+          objRequest.Query["mbn"] = objCred.Mitbenutzer;
+        }
+        if (objCred.AuthenticationMode == AuthMode.QueryString) {
+          objRequest.Query["cacheTimeout"]  = "-1";
+          objRequest.Query["cacheSecret"]   = objClient.Secret;             
+        }
+        objRequest.RestPath = "LOGOFF";
+        HttpResponseMessage objResponse;
+        Dictionary<String,Object> objContent = objClient.send(objRequest,out objResponse);
+        if (objResponse == null) {
+          tee($"-> Senden mit Timeout=-1 fehlgeschlagen!?");
+        }
+        else {
+          tee($"-> Abgemeldet.");
+          log("Status: "+((int)objResponse.StatusCode)+" "+objResponse.ReasonPhrase);
+        }
       }
     }
 
 
+
 //--------------------------------------------------------------------
 
+    /// <summary>
+    /// Verarbeite ein Batch-ähnliches Melden von Daten an HIT.
+    /// Es wird dabei für den gegebenen Task und dazugehörige Anmeldedaten
+    /// eine Datei ausgelesen, die in der ersten Zeile die gewünschten
+    /// Ausgabespalten und in den folgenden Zeilen die Abfragen (im CSV-Format)
+    /// enthält. Die Ergebnisse werden in die beim Task angegebene Datei
+    /// weggeschrieben.
+    /// </summary>
+    /// <param name="pobjTask"></param>
+    /// <param name="pobjClient"></param>
+    /// <param name="pobjCred"></param>
     private static void processGet(Task pobjTask,RestClient pobjClient,Credentials pobjCred)  {
       Stopwatch watch = new Stopwatch();
-      watch.Start();
 
-      // URI bauen
-      URI objRequest = pobjTask.CreateURI(pobjClient,pobjCred); // der Task braucht den Client, damit ggf. ein Secret übernommen werden kann
+      // Input-Datei öffnen
+      using (TextReader objIn = new StreamReader(pobjTask.InputPath)) {
 
-      // bei GET arbeiten wir die Input-Datei Zeile für Zeile ab und setzen ein RS ab
+        // die erste Zeile enthält die Ausgabespalten:
+        String strOutput = objIn.ReadLine();
+        log("GET '"+pobjTask.Display+"': columns="+strOutput);
+        bool headerWritten = false;
 
+        // wir schreiben eine Ausgabedatei mit den Datenzeilen
+        using (TextWriter objOut = new StreamWriter(pobjTask.OutputPath,true,new UTF8Encoding(false))) {    // we always append in this demo client
 
-      // CONTINUE HERE
+          // alle weiteren Zeilen enthalten je eine Abfragebedingung
+          String strLine;
+          int    intLines = 0;
+          while ((strLine = objIn.ReadLine()) != null)  {
+            ++intLines;
+            watch.Reset();
+            watch.Start();
 
-        HttpResponseMessage objResponse = pobjClient.send(objRequest);
-        if (objResponse == null) {
-          tee($"-> Senden nach {watch.ElapsedMilliseconds}ms fehlgeschlagen!?");
+            // die Zeile ist die Bedingung, also zusammenstellen:
+            URI objRequest = pobjTask.CreateURI(pobjClient,pobjCred); // der Task braucht den Client, damit ggf. ein Secret übernommen werden kann
+            objRequest.Query.Add("columns",strOutput);
+            objRequest.Query.Add("condition",strLine);
+
+            // Senden
+            HttpResponseMessage objResponse;
+            Dictionary<String,Object> objContent = pobjClient.send(objRequest,out objResponse);
+            // objContent enthält in C# ein JObject mit mehreren Schlüsseln und Werten, die wiederum JObjects und JArrays sind
+            // der send() hat einen erzeugten Secret bereits extrahiert, d.h. man muss sich nicht mehr kümmern
+            watch.Stop();
+            if (objResponse == null) {
+              tee($"-> Senden nach {watch.ElapsedMilliseconds}ms fehlgeschlagen!?");
+            }
+            else {
+              tee($"-> Antwort nach  {watch.ElapsedMilliseconds}ms");
+
+              log("Status: "+((int)objResponse.StatusCode)+" "+objResponse.ReasonPhrase);
+              if (objResponse.IsSuccessStatusCode)  {
+                // aus der Antwort das relevante extrahieren: Daten und Antwortzeilen
+                JObject objEntityDaten  = (JObject)objContent["daten"       ];
+                // objEntityDaten enthält Basisentität -> Liste von Datenzeilen
+                // da wir hier nur eine Entität abfragen, bekommen wir auch nur eine Datenliste:
+                JArray  objDaten        = (JArray )objEntityDaten[pobjTask.Entity];
+                JArray  objAntworten    = (JArray )objContent["antworten"   ];
+                // objDaten enthält Liste von Antwortzeilen
+
+                // die Daten kommen in die Ausgabedatei
+                if (!headerWritten && objDaten.Count > 0) {
+                  // wir haben noch keinen Header geschrieben, also:
+                  bool first = true;
+                  foreach (JProperty objCols in objDaten[0])  {
+                    if (first) first = false; else objOut.Write(";");
+                    objOut.Write(objCols.Name);
+                  }
+                  objOut.WriteLine(""); // EndOfLine
+                }
+
+                // Zeile für Zeile die Daten
+                foreach (JToken objRows in objDaten) {
+                  bool first = true;
+                  foreach (JProperty objCols in objRows)  {
+                    if (first) first = false; else objOut.Write(";");
+                    objOut.Write(objCols.Value.ToString());
+                  }
+                  objOut.WriteLine(""); // EndOfLine
+                }
+              }
+              else  {
+                // Fehler holen:
+                String strErr = (String)objContent["Message"];
+                tee("Fehler: "+strErr);
+                break;
+              }
+
+              // analyze objResponse
+              // TODO
+
+            }
+          }
+
+          tee("-> "+Helper.getForNum(intLines,"Eine Abfrage","* Abfragen","*")+" verarbeitet");
         }
-        else {
-          tee($"-> Antwort nach  {watch.ElapsedMilliseconds}ms");
 
-          // analyze objResponse
-          // TODO
-
+        // wenn Ausgabedatei leer, dann löschen
+        try {
+          if (new FileInfo(pobjTask.OutputPath).Length == 0)  {
+            File.Delete(pobjTask.OutputPath);
+            log("Gelöscht: "+pobjTask.OutputPath);
+          }
         }
-
-      watch.Stop();
+        catch (Exception) { log("Could not delete empty "+pobjTask.OutputPath); }
+      }
 
     }
 
@@ -233,31 +394,31 @@ namespace HIT.REST.Client {
       Console.WriteLine("FEHLER: "+pstrError);
     }
 
-    /*
-          private static void start(string[] args) {
-            HttpClient client;
+/*
+    private static void start(string[] args) {
+      HttpClient client;
 
-            // Test ohne Auth:
-            client = GetHttpClient(ClientMode.NoAuthorization);
+      // Test ohne Auth:
+      client = GetHttpClient(ClientMode.NoAuthorization);
 
-            GetGeburten(client);
+      GetGeburten(client);
 
-            pressEnterTo("continue with Authentication header");
+      pressEnterTo("continue with Authentication header");
 
-            // Test mit Auth-Header:
-            client = GetHttpClient(ClientMode.AuthenticationHeader);
+      // Test mit Auth-Header:
+      client = GetHttpClient(ClientMode.AuthenticationHeader);
 
-            GetGeburten(client);
+      GetGeburten(client);
 
-            pressEnterTo("continue with selfmade header");
+      pressEnterTo("continue with selfmade header");
 
-            // Test ohne Auth:
-            client = GetHttpClient(ClientMode.SelfmadeHeader);
+      // Test ohne Auth:
+      client = GetHttpClient(ClientMode.SelfmadeHeader);
 
-            GetGeburten(client);
+      GetGeburten(client);
 
-          }
-    */
+    }
+*/
 
 //--------------------------------------------------------------------
 
@@ -410,6 +571,10 @@ namespace HIT.REST.Client {
       }
     }
 
+    /// <summary>
+    /// Text in Logdatei protokollieren und zugleich auf Console ausgeben
+    /// </summary>
+    /// <param name="pstrMsg"></param>
     public static void tee(String pstrMsg) {
       Console.Out.WriteLine(pstrMsg);
       log(pstrMsg,true);

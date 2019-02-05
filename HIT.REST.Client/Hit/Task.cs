@@ -46,6 +46,18 @@ namespace HIT.REST.Client.Hit {
 //--------------------------------------------------------------------
 
     /// <summary>
+    /// Liefere Anzeigetext für den Task
+    /// </summary>
+    public String Display { get {
+      if (String.IsNullOrWhiteSpace(Description)) {
+        return "mit "+GetHitCommand()+":"+Entity;
+      }
+      return Description;
+    }}
+
+
+
+    /// <summary>
     /// Prüfe, ob Aktion gültig ist.
     /// </summary>
     /// <returns>ja/nein</returns>
@@ -154,22 +166,24 @@ namespace HIT.REST.Client.Hit {
 
       // der Client gibt die URI vor
       URI pobjURI = pobjClient.CreateURI();
+      pobjURI.RestPath = Entity;
 
       // die URI für den Task füllen und dabei AuthenticationMode berücksichtigen
       if (pobjCred != null) switch (pobjCred.AuthenticationMode) {
         case AuthMode.AuthenticationHeader:
           // der HttpClient hat bereits BNR, MBN und PIN via Authorization-Header
-          // gesetzt, ebenso den Timeout per eigenem Header
+          // gesetzt, ebenso den Timeout und ggf. Secret per eigenem Header
           // -> da ist nichts weiter zu tun
           break;
 
         case AuthMode.SelfmadeHeader:
           // der HttpClient hat bereits BNR, MBN und PIN via eigener Header gesetzt,
-          // ebenso den Timeout
+          // ebenso den Timeout und ggf. Secret
           // -> da ist nichts weiter zu tun
           break;
 
         case AuthMode.QueryString:
+          // Query-Namen exakt genau so wie in HIT.Meldeprogramm.Web.Controllers.RESTv2.HitController !
           // zusätzlich zur Anfrage dazuhängen
           pobjURI.Query["bnr"] = pobjCred.Betriebsnummer;
           if (!String.IsNullOrWhiteSpace(pobjCred.Mitbenutzer))  {
@@ -180,8 +194,10 @@ namespace HIT.REST.Client.Hit {
             pobjURI.Query["pin"] = pobjCred.PIN;
           }
           else  {
-            pobjURI.Query["secret"] = pobjClient.Secret;
+            pobjURI.Query["cacheSecret"] = pobjClient.Secret;     
           }
+          // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
+          pobjURI.Query["cacheTimeout"]  = pobjCred.Timeout.ToString();
           break;
 
         case AuthMode.NoAuth:
@@ -189,7 +205,6 @@ namespace HIT.REST.Client.Hit {
           // nichts weiter
           break;
       }
-
 
       return pobjURI;
     }

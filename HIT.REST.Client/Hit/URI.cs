@@ -37,7 +37,7 @@ namespace HIT.REST.Client.Hit {
       set {
         if (value != null)  {
           while (value.StartsWith("/"))  value = value.Substring(1);
-          while (value.EndsWith("/"))    value = value.Substring(0,-1);
+          while (value.EndsWith("/"))    value = value.Substring(0,value.Length-1);
         }
         strThisBasePath = value;
       }
@@ -46,7 +46,7 @@ namespace HIT.REST.Client.Hit {
 
     public String RestPath  { get; set; }
 
-    public NameValueCollection  Query { get; }  // no set!
+    public NameValueCollection  Query { get; private set; }  // no public set!
 
     public String Fragment  { get; set; }
 
@@ -57,6 +57,23 @@ namespace HIT.REST.Client.Hit {
     public URI()  {
       Scheme  = "http";
       Query   = new NameValueCollection();
+    }
+
+
+    /// <summary>
+    /// Lege Kopie einer URI an.
+    /// </summary>
+    /// <param name="pobjSource"></param>
+    public URI(URI pobjSource)  {
+      if (pobjSource == null) throw new ArgumentNullException();
+
+      strThisScheme   = pobjSource.strThisScheme;
+      Host            = pobjSource.Host;
+      Port            = pobjSource.Port;
+      strThisBasePath = pobjSource.strThisBasePath;
+      RestPath        = pobjSource.RestPath;
+      Query           = new NameValueCollection(pobjSource.Query);      // copy
+      Fragment        = pobjSource.Fragment;
     }
 
 
@@ -76,7 +93,7 @@ namespace HIT.REST.Client.Hit {
         // "scheme://host"
         strBuf.Append(Scheme).Append("://").Append(Host);
         // ":port"
-        if (Port != null) {
+        if (Port != null && Port > 0) {
           bool addPort = false;
           addPort |= (Port !=  80 && "http" .Equals(Scheme));
           addPort |= (Port != 443 && "https".Equals(Scheme));

@@ -16,7 +16,7 @@
       "OutputPath": "Daten\\GeburtResponse.txt"
     },
     {
-      "Description": "Abfrage Zug‰nge",
+      "Description": "Abfrage Zug√§nge",
       "Action": "RS",
       "Entity": "Zugang",
       "InputPath": "Daten\\ZugangRequest.txt",

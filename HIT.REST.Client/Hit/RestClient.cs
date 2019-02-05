@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using HIT.REST.Client.config;
@@ -81,7 +82,6 @@ namespace HIT.REST.Client.Hit {
     /// <summary>Das aktuelle Secret der REST-Sitzung.</summary>
     private String              strThisCurrentSecret;
 
-    private bool                boolThisNewLoginRequired;
     private Credentials         objThisCredentials;
 
 
@@ -95,7 +95,6 @@ namespace HIT.REST.Client.Hit {
       objThisUA           = null; // wird erst angelegt, wenn benötigt
       intThisBaseUrlIndex = -1;   // -1 = "versuche den nächsten"
 
-      boolThisNewLoginRequired  = true;
       objThisCredentials        = null;
     }
 
@@ -107,21 +106,23 @@ namespace HIT.REST.Client.Hit {
     /// Liefere aktuellen HttpClient oder den nächsten
     /// aus der Liste der BaseUrls.
     /// </summary>
-    public HttpClient CurrentHttpClient { get {
+    /// <param name="pboolEndSession">Wird <tt>true</tt> angegeben, wird eine URI so gebildet, dass eine ggf. bestehende Sitzung durch explizites Setzen eines negativen Timeouts beendet wird.</param>
+    public HttpClient CurrentHttpClient(bool pboolEndSession = false) {
       if (objThisUA == null)  {
         // da ist noch keiner, also anlegen
+        intThisBaseUrlIndex++;
 
         // ist der Index "verbraucht", dann gibt's keinen weiteren Versuch mehr
         if (intThisBaseUrlIndex >= config.BaseUrls.Count) return null;
 
         // der nächste:
-        intThisBaseUrlIndex++;
         BaseUrlElement  objBaseUrl = config.BaseUrls[intThisBaseUrlIndex];
+Program.log("Try BaseUrl "+objBaseUrl.BaseUrl);
 
         // Anlegen inkl. vorbereiteter Header für Authentication
         objThisUA = new HttpClient();
         // generelle Parameter setzen
-        objThisUA.BaseAddress = new Uri(objBaseUrl.SchemeAndDomainUrl);
+        objThisUA.BaseAddress = new Uri(objBaseUrl.BaseUrl);
         objThisUA.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         // Mit Credentials speziell für den zu verwendenden
@@ -139,7 +140,8 @@ namespace HIT.REST.Client.Hit {
               objThisUA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("basic",$"{Credentials.Betriebsnummer}:{Credentials.Mitbenutzer}:");
               objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,strThisCurrentSecret);
             }
-            objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,Credentials.Timeout.ToString());
+            // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
+            objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,(pboolEndSession ? -1 : Credentials.Timeout).ToString());
             break;
 
           case AuthMode.SelfmadeHeader:
@@ -153,7 +155,8 @@ namespace HIT.REST.Client.Hit {
             else  {
               objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,strThisCurrentSecret);
             }
-            objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,Credentials.Timeout.ToString());
+            // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
+            objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,(pboolEndSession ? -1 : Credentials.Timeout).ToString());
             break;
 
           case AuthMode.QueryString:
@@ -165,19 +168,32 @@ namespace HIT.REST.Client.Hit {
             // keine extra Header
             break;
         }
+Program.log(objThisUA.DefaultRequestHeaders.ToString());
+Program.log(objThisUA.BaseAddress);
       }
       return objThisUA;
-    }}
+    }
+
+
+    /// <summary>
+    /// Lege den aktuellen HitClient tot, so dass der nächste
+    /// in der Konfiguration vermerkte REST-Service probiert wird
+    /// </summary>
+    public void forceNextHost() {
+      objThisUA             = null;
+      strThisCurrentSecret  = null;
+    }
 
 
     /// <summary>
     /// Erzeuge URI als Vorlage anhand des aktuellen HttpClients.
-    /// Scheme, Host und BasePath werden gesetzt; RestPath und Query muss noch nachgezogen werden.
+    /// Scheme, Host und BasePath werden gesetzt; RestPath, Query und ggf. die Credentials müssen noch nachgezogen werden.
     /// </summary>
+    /// <param name="pboolEndSession">Wird <tt>true</tt> angegeben, wird eine URI so gebildet, dass eine ggf. bestehende Sitzung durch explizites Setzen eines negativen Timeouts beendet wird.</param>
     /// <returns><see cref="URI"/></returns>
-    public URI CreateURI()  {
+    public URI CreateURI(bool pboolEndSession = false)  {
       // erst Client besorgen, damit wir wissen, welche URL wir aufbauen sollen
-      HttpClient objClient = CurrentHttpClient;
+      HttpClient objClient = CurrentHttpClient(pboolEndSession);
       // gibt's keinen, dann war's das
       if (objClient == null)  return null;
 
@@ -187,8 +203,10 @@ namespace HIT.REST.Client.Hit {
       URI objUri = new URI();
       objUri.Scheme   = objBaseUrl.UseHttps ? "https" : "http";
       objUri.Host     = objBaseUrl.Domain;
-      objUri.BasePath = config.BasePath.path;   // das ist der feste Pfadbestandteil
+      objUri.Port     = objBaseUrl.Port;
+      objUri.BasePath = (objBaseUrl.RootPath == null ? "" : "/"+objBaseUrl.RootPath)+config.BasePath.path;   // das ist der feste Pfadbestandteil
 
+Program.log("RestClient.CreateURI() -> "+objUri);
       return objUri;
     }
 
@@ -200,9 +218,8 @@ namespace HIT.REST.Client.Hit {
       set {
         objThisCredentials        = value;
 
-        // wurden neue Credentials gesetzt, dann merken wir uns das,
-        // damit wir z.B. eine neue Session starten können
-        boolThisNewLoginRequired  = true;
+        // wurden neue Credentials gesetzt, dann gilt ein vorhandenes Secret nicht mehr
+        strThisCurrentSecret  = null;
       }
     }
 
@@ -221,36 +238,44 @@ namespace HIT.REST.Client.Hit {
 
 
     /// <summary>
-    /// Sende Anfrage an HIT3-REST, ggf. mit nötigem Login.
+    /// Sende Anfrage an HIT3-REST.
     /// </summary>
-    /// <param name="pobjTask"><see cref="Task"/>, der gesendet werden soll</param>
-    /// <returns>die vom HIT3-REST-Service erhaltene Antwort in Rohform</returns>
-    public HttpResponseMessage send(URI pobjUri)  {
-      HttpResponseMessage objResponse = null;
+    /// <param name="pobjUri"><see cref="URI"/>, die gesendet werden soll</param>
+    /// <param name="pobjResponse">Die <see cref="HttpRequestMessage"/></param>
+    /// <returns>die vom HIT3-REST-Service erhaltene Antwort in Rohform oder <tt>null</tt>, wenn kein Content gelesen werden konnte</returns>
+    public Dictionary<String,Object> send(URI pobjUri,out HttpResponseMessage pobjResponse)  {
+      if (pobjUri == null)  throw new ArgumentNullException(nameof(pobjUri),"Eine URI ist unabdingbar!");
 
+      // standardmäßig erst mal keine Antwort
+      pobjResponse = null;
 
+      Dictionary<String,Object> objContent = null;
 
+      HttpClient objUA = CurrentHttpClient();
+      if (objUA == null)  {
+        Program.log("#> No UA available!");
+        // gar kein HIT3-REST-Service war erreichbar
+        return null;
+      }
 
-      throw new NotImplementedException();
-    }
+      try {
+        Program.log("#> send "+pobjUri.ToString());
+        pobjResponse = objUA.GetAsync(pobjUri.ToString()).Result;
+        Program.log("#> rcvd HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase);
+        Program.log("#> grab response");
+        objContent = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
+      }
+      catch (Exception e)  {
+        Program.log("Keine Verbindung zu "+pobjUri+" möglich!");
+      }
 
-
-
-
-    private HttpResponseMessage sendToREST() {
-      //try {
-      //  objResponse = client.GetAsync(config.BasePath.path).Result;
-      //  message.EnsureSuccessStatusCode();
-      //  if (message.Content.ReadAsAsync<bool>().Result) {
-      //    Console.WriteLine("-> verbunden!");
-      //    return client;
-      //  }
-      //}
-      //catch (Exception e) {
-      //    Console.WriteLine("-> Fehler: "+e.Message);
-      //}
-
-      throw new NotImplementedException();
+      // wenn wir noch kein Secret haben, dann versuche, den zu extrahieren
+      if (strThisCurrentSecret == null && objContent.ContainsKey("cache_secret")) {
+        String  strCacheSecret  = (String)objContent["cache_secret"];
+        if (!String.IsNullOrEmpty(strCacheSecret))  strThisCurrentSecret = strCacheSecret;
+      }
+      
+      return objContent;
     }
 
 

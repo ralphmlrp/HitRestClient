@@ -31,7 +31,7 @@ namespace HIT.REST.Client.config {
     /// <param name="element"></param>
     /// <returns></returns>
     protected override object GetElementKey(ConfigurationElement element) {
-      return ((BaseUrlElement)element).SchemeAndDomainUrl;
+      return ((BaseUrlElement)element).BaseUrl;
     }
 
 

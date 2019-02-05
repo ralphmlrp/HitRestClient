@@ -21,10 +21,11 @@ namespace HIT.REST.Client.config {
     /// <param name="pstrDomain"></param>
     /// <param name="pboolUseHttps"></param>
     /// <param name="pintPort"></param>
-    public BaseUrlElement(String pstrDomain,bool pboolUseHttps = true,int pintPort = -1) : this() {
+    public BaseUrlElement(String pstrDomain,bool pboolUseHttps = true,int pintPort = -1,String pstrRootPath = null) : this()  {
       UseHttps  = pboolUseHttps;
       Domain    = pstrDomain;
       Port      = pintPort;
+      RootPath  = pstrRootPath;
     }
     
     /// <summary>
@@ -32,9 +33,7 @@ namespace HIT.REST.Client.config {
     /// </summary>
     [ConfigurationProperty("https", DefaultValue = true)]   // IMPORTANT: der Name hier im ConfigurationProperty() muss mit dem Namen beim this[]-Indexer exakt übereinstimmen!
     public bool UseHttps  {
-      get {
-        return (bool)this["https"];
-      }
+      get { return (bool)this["https"]; }
       set { this["https"] = value; }
     }
 
@@ -54,6 +53,20 @@ namespace HIT.REST.Client.config {
       }
     }
 
+    [ConfigurationProperty("path", DefaultValue = null)]
+    public String RootPath  {
+      get { return (String)this["path"]; }
+      set {
+        if (value != null)  {
+          while (value.StartsWith("/")) value = value.Substring(1);
+          while (value.EndsWith  ("/")) value = value.Substring(0,value.Length-1);
+          if (value.Length == 0)  value = null;
+        }
+        this["path"] = value;
+      }
+    }
+
+
 
     /// <summary>
     /// <para>
@@ -64,25 +77,22 @@ namespace HIT.REST.Client.config {
     /// Wird auch als Schlüssel für die übergeordnete <see cref="ConfigurationElementCollection"/> verwendet.
     /// </para>
     /// </summary>
-    public String SchemeAndDomainUrl {
+    public String BaseUrl {
       get {
         String strScheme  = UseHttps ? "https" : "http";
         String strPort    = "";
-        if (Port == 0)  {
-          // use default
+        if (Port > 0) {
+          bool addPort = false;
+          addPort |= (Port !=  80 && !UseHttps);
+          addPort |= (Port != 443 && UseHttps);
+          if (addPort) strPort = ":"+Port;
         }
-        else if (UseHttps && Port != 443) {
-          // if HTTPS & not port 443 then amend the port number
-          strPort = ":"+Port;
-        }
-        else if (!(!UseHttps && Port == 80) || !(UseHttps && Port == 443)) {
-          // if HTTP & not port 80 then amend the port number
-          strPort = ":"+Port;
-        }
-        else  {
+        String strRootPath    = "";
+        if (!String.IsNullOrEmpty(RootPath))  {
+          strRootPath = RootPath+"/";
         }
 
-        return strScheme+"://"+Domain+strPort+"/";
+        return strScheme+"://"+Domain+strPort+"/"+strRootPath;
       }
     }
 
