@@ -95,7 +95,7 @@ namespace HIT.REST.Client.Hit {
       objThisUA           = null; // wird erst angelegt, wenn benötigt
       intThisBaseUrlIndex = -1;   // -1 = "versuche den nächsten"
 
-      objThisCredentials        = null;
+      Credentials         = null;
     }
 
 
@@ -108,6 +108,7 @@ namespace HIT.REST.Client.Hit {
     /// </summary>
     /// <param name="pboolEndSession">Wird <tt>true</tt> angegeben, wird eine URI so gebildet, dass eine ggf. bestehende Sitzung durch explizites Setzen eines negativen Timeouts beendet wird.</param>
     public HttpClient CurrentHttpClient(bool pboolEndSession = false) {
+Program.log("RestClient.CurrentHttpClient("+(pboolEndSession?"true":"false")+") ...");
       if (objThisUA == null)  {
         // da ist noch keiner, also anlegen
         intThisBaseUrlIndex++;
@@ -117,17 +118,37 @@ namespace HIT.REST.Client.Hit {
 
         // der nächste:
         BaseUrlElement  objBaseUrl = config.BaseUrls[intThisBaseUrlIndex];
-Program.log("Try BaseUrl "+objBaseUrl.BaseUrl);
+Program.log("\tTry BaseUrl \""+objBaseUrl.BaseUrl+"\" for new connection ...");
 
         // Anlegen inkl. vorbereiteter Header für Authentication
         objThisUA = new HttpClient();
         // generelle Parameter setzen
         objThisUA.BaseAddress = new Uri(objBaseUrl.BaseUrl);
         objThisUA.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+      }
+      return objThisUA;
+    }
 
-        // Mit Credentials speziell für den zu verwendenden
-        // Autorisierungsmodus weitere Angaben setzen
-        if (Credentials != null) switch (Credentials.AuthenticationMode) {
+
+    public void prepareHttpClient(bool pboolEndSession = false) {
+      // gibt's noch keinen Useragenten, dann tu nichts
+      if (objThisUA == null)  return;
+
+      // Mit Credentials speziell für den zu verwendenden
+      // Autorisierungsmodus weitere Angaben setzen
+      if (Credentials == null) {
+Program.log("No Credentials for HttpClient!");
+      }
+      else  {
+        // die Header erst wieder entfernen, bevor wir sie neu setzen, da es kein Überschreiben gibt!
+        objThisUA.DefaultRequestHeaders.Authorization = null;
+        objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_BNR);
+        objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_MBN);
+        objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_PIN);
+        objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_SECRET);
+        objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_TIMEOUT);
+
+        switch (Credentials.AuthenticationMode) {
           case AuthMode.AuthenticationHeader:
             // mit dem Authentication-Header setzen wir "BNR:MBN:PIN"
             // fehlt nur noch der Timeout, der kommt per eigenem Header
@@ -168,10 +189,11 @@ Program.log("Try BaseUrl "+objBaseUrl.BaseUrl);
             // keine extra Header
             break;
         }
-Program.log(objThisUA.DefaultRequestHeaders.ToString());
-Program.log(objThisUA.BaseAddress);
       }
-      return objThisUA;
+Program.log("HttpClient:\n-----");
+Program.log("VERB "+objThisUA.BaseAddress);
+Program.log(objThisUA.DefaultRequestHeaders.ToString());
+Program.log("-----");
     }
 
 
@@ -196,6 +218,9 @@ Program.log(objThisUA.BaseAddress);
       HttpClient objClient = CurrentHttpClient(pboolEndSession);
       // gibt's keinen, dann war's das
       if (objClient == null)  return null;
+
+      // übernehme Login-Credentials je nach AuthMode
+      prepareHttpClient(pboolEndSession);
 
       // mit der aktuellen BaseUrl frisch anlegen
       BaseUrlElement  objBaseUrl = config.BaseUrls[intThisBaseUrlIndex];
@@ -243,9 +268,22 @@ Program.log("RestClient.CreateURI() -> "+objUri);
     /// <param name="pobjUri"><see cref="URI"/>, die gesendet werden soll</param>
     /// <param name="pobjResponse">Die <see cref="HttpRequestMessage"/></param>
     /// <returns>die vom HIT3-REST-Service erhaltene Antwort in Rohform oder <tt>null</tt>, wenn kein Content gelesen werden konnte</returns>
-    public Dictionary<String,Object> send(URI pobjUri,out HttpResponseMessage pobjResponse)  {
+    private Dictionary<String,Object> send(Verb penumVerb,URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
       if (pobjUri == null)  throw new ArgumentNullException(nameof(pobjUri),"Eine URI ist unabdingbar!");
 
+      // bei GET gibt es keinen HttpContent, bei den anderen muss einer dabei sein
+      switch (penumVerb) {
+        case Verb.Get:
+        case Verb.Delete:
+          if (pobjRequestContent != null) throw new ArgumentNullException(nameof(pobjRequestContent),"Eine "+penumVerb+"-Anfrage hat keinen Inhalt, sondern nur Query-Strings!");
+          break;
+
+        case Verb.Put:
+        case Verb.Post:
+          if (pobjRequestContent == null) throw new ArgumentNullException(nameof(pobjRequestContent),"Ohne Inhalt keine "+penumVerb+"-Anfrage!");
+          break;
+      }
+      
       // standardmäßig erst mal keine Antwort
       pobjResponse = null;
 
@@ -258,15 +296,40 @@ Program.log("RestClient.CreateURI() -> "+objUri);
         return null;
       }
 
+      // übernehme Login-Credentials je nach AuthMode
+      prepareHttpClient();
+
       try {
-        Program.log("#> send "+pobjUri.ToString());
-        pobjResponse = objUA.GetAsync(pobjUri.ToString()).Result;
+        Program.log("#> send "+penumVerb+" "+pobjUri.ToString());
+        switch (penumVerb)  {
+          case Verb.Get:
+            pobjResponse = objUA.GetAsync(pobjUri.ToString()).Result;
+            break;
+
+          case Verb.Put:
+            pobjResponse = objUA.PutAsync(pobjUri.ToString(),pobjRequestContent).Result;
+            break;
+
+          case Verb.Post:
+            pobjResponse = objUA.PostAsync(pobjUri.ToString(),pobjRequestContent).Result;
+            break;
+
+          case Verb.Delete:
+            pobjResponse = objUA.DeleteAsync(pobjUri.ToString()).Result;
+            break;
+
+          default:
+            pobjResponse = null;
+            break;
+        }
+
         Program.log("#> rcvd HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase);
         Program.log("#> grab response");
         objContent = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
       }
       catch (Exception e)  {
         Program.log("Keine Verbindung zu "+pobjUri+" möglich!");
+        return null;
       }
 
       // wenn wir noch kein Secret haben, dann versuche, den zu extrahieren
@@ -274,12 +337,33 @@ Program.log("RestClient.CreateURI() -> "+objUri);
         String  strCacheSecret  = (String)objContent["cache_secret"];
         if (!String.IsNullOrEmpty(strCacheSecret))  strThisCurrentSecret = strCacheSecret;
       }
+
+if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent)  {
+  Program.log(pair.Key+"\t=> "+pair.Value+" ["+pair.Value?.GetType()?.FullName+"]");
+}
       
       return objContent;
     }
 
 
 
-//--------------------------------------------------------------------
+    public Dictionary<String,Object> sendGET(URI pobjUri,out HttpResponseMessage pobjResponse)  {
+      return send(Verb.Get,pobjUri,null,out pobjResponse);
+    }
+
+    public Dictionary<String,Object> sendPUT(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
+      return send(Verb.Put,pobjUri,pobjRequestContent,out pobjResponse);
+    }
+
+    public Dictionary<String,Object> sendPOST(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
+      return send(Verb.Post,pobjUri,pobjRequestContent,out pobjResponse);
+    }
+
+    public Dictionary<String,Object> sendDELETE(URI pobjUri,out HttpResponseMessage pobjResponse)  {
+      return send(Verb.Delete,pobjUri,null,out pobjResponse);
+    }
+    
+
+    //--------------------------------------------------------------------
   }
 }

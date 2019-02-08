@@ -164,6 +164,9 @@ namespace HIT.REST.Client.Hit {
     public URI CreateURI(RestClient pobjClient,Credentials pobjCred) {
       if (pobjClient == null)  throw new ArgumentNullException(nameof(pobjClient),"We need a RestClient for it");
 
+      // der Client braucht die Credentials, also
+      pobjClient.Credentials  = pobjCred;
+
       // der Client gibt die URI vor
       URI pobjURI = pobjClient.CreateURI();
       pobjURI.RestPath = Entity;

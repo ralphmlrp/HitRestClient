@@ -1,6 +1,6 @@
 {
   "Credentials": {
-    "AuthenticationMode": "QueryString",
+    "AuthenticationMode": "AuthenticationHeader",
     "Betriebsnummer": "09 000 000 0015",
     "Mitbenutzer": "0",
     "PIN": "900015",

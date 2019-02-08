@@ -112,6 +112,8 @@ Console.WriteLine(e.ToString());
       RestClient          objClient   = new RestClient(staticConfig);
       HttpResponseMessage objResponse = null;
 
+      // Setzen von objClient.Credentials nicht nötig
+
       while (objResponse == null) {
         // der Client gibt die Basis-URL je nach AuthenticationMode vor
         URI objRequest = objClient.CreateURI();
@@ -120,7 +122,7 @@ Console.WriteLine(e.ToString());
 
         // die URI reicht schon für eine Test-Anfrage
         log("Anfrage an "+objRequest+":");
-        Dictionary<String,Object> objContent = objClient.send(objRequest,out objResponse);
+        Dictionary<String,Object> objContent = objClient.sendGET(objRequest,out objResponse);
         if (objResponse == null)  {
           // der Service reagierte nicht, den nächsten versuchen
           log("-> keine Reaktion!");
@@ -167,6 +169,7 @@ Console.WriteLine(e.ToString());
     public static void runJob(String pstrJobPath) {
       // deserialize Job description
       Job objJob = Job.fromFile(pstrJobPath);
+      if (objJob == null) return; // Fehlermeldung ist bereits protokolliert
 
       // vorbereiten
       Stopwatch total = new Stopwatch();
@@ -212,17 +215,17 @@ Console.WriteLine(e.ToString());
       // (sofern eine Sitzung existiert)
       if (objClient.Secret != null) {
         URI objRequest = objClient.CreateURI(true);
-        objRequest.Query["bnr"] = objCred.Betriebsnummer;
-        if (!String.IsNullOrWhiteSpace(objCred.Mitbenutzer))  {
-          objRequest.Query["mbn"] = objCred.Mitbenutzer;
-        }
+        //objRequest.Query["bnr"] = objCred.Betriebsnummer;
+        //if (!String.IsNullOrWhiteSpace(objCred.Mitbenutzer))  {
+        //  objRequest.Query["mbn"] = objCred.Mitbenutzer;
+        //}
         if (objCred.AuthenticationMode == AuthMode.QueryString) {
           objRequest.Query["cacheTimeout"]  = "-1";
           objRequest.Query["cacheSecret"]   = objClient.Secret;             
         }
-        objRequest.RestPath = "LOGOFF";
+        objRequest.RestPath = "session";    // eigene Entität für die Beendigung der Session
         HttpResponseMessage objResponse;
-        Dictionary<String,Object> objContent = objClient.send(objRequest,out objResponse);
+        Dictionary<String,Object> objContent = objClient.sendDELETE(objRequest,out objResponse);
         if (objResponse == null) {
           tee($"-> Senden mit Timeout=-1 fehlgeschlagen!?");
         }
@@ -277,7 +280,7 @@ Console.WriteLine(e.ToString());
 
             // Senden
             HttpResponseMessage objResponse;
-            Dictionary<String,Object> objContent = pobjClient.send(objRequest,out objResponse);
+            Dictionary<String,Object> objContent = pobjClient.sendGET(objRequest,out objResponse);
             // objContent enthält in C# ein JObject mit mehreren Schlüsseln und Werten, die wiederum JObjects und JArrays sind
             // der send() hat einen erzeugten Secret bereits extrahiert, d.h. man muss sich nicht mehr kümmern
             watch.Stop();

@@ -46,7 +46,13 @@ namespace HIT.REST.Client {
       }
       // Der StringEnumConverter konvertiert Enum-Werte zusätzlich als Namen
       // und nicht nur als numerische Werte
-      return JsonConvert.DeserializeObject<Job>(json,new StringEnumConverter());
+      try {
+        return JsonConvert.DeserializeObject<Job>(json,new StringEnumConverter());
+      }
+      catch (Exception e) {
+        Program.tee("Fehler beim Einlesen der Job-Datei: "+e.Message);
+      }
+      return null;
     }
 
 
