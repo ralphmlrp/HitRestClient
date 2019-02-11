@@ -187,6 +187,9 @@ Console.WriteLine(e.ToString());
       // unseren RestClient vorbereiten, der sich um die Kommunikation mit HIT3-REST kümmert
       RestClient objClient = new RestClient(staticConfig);
 
+      // der Client braucht die Credentials, also
+      objClient.Credentials  = objCred;
+
       // jetzt einfach einen Task nach dem anderen abarbeiten
       int intTaskCounter = 0;
       foreach (Task task in objJob.Tasks) {
@@ -250,7 +253,7 @@ Console.WriteLine(e.ToString());
     /// </summary>
     /// <param name="pobjTask"></param>
     /// <param name="pobjClient"></param>
-    /// <param name="pobjCred"></param>
+    /// <param name="pobjCred">Für die URI, um ggf. Anmeldeinformationen mitgeben zu können</param>
     private static void processGet(Task pobjTask,RestClient pobjClient,Credentials pobjCred)  {
       Stopwatch watch = new Stopwatch();
 

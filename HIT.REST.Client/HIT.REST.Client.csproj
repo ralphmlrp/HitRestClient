@@ -80,8 +80,10 @@
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
+    <Content Include="Daten\GeburtResponse.txt" />
     <Content Include="Daten\ZugangRequest.txt" />
     <Content Include="Daten\GeburtRequest.txt" />
+    <Content Include="Daten\ZugangResponse.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

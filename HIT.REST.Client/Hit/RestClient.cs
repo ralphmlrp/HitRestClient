@@ -134,6 +134,8 @@ Program.log("\tTry BaseUrl \""+objBaseUrl.BaseUrl+"\" for new connection ...");
       // gibt's noch keinen Useragenten, dann tu nichts
       if (objThisUA == null)  return;
 
+Program.log("RestClient.prepareHttpClient("+(pboolEndSession?"true":"false")+") with secret="+(Secret==null?"<null>":Secret)+" ...");
+
       // Mit Credentials speziell für den zu verwendenden
       // Autorisierungsmodus weitere Angaben setzen
       if (Credentials == null) {
@@ -152,14 +154,14 @@ Program.log("No Credentials for HttpClient!");
           case AuthMode.AuthenticationHeader:
             // mit dem Authentication-Header setzen wir "BNR:MBN:PIN"
             // fehlt nur noch der Timeout, der kommt per eigenem Header
-            if (strThisCurrentSecret == null) {
+            if (Secret == null) {
               objThisUA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("basic",$"{Credentials.Betriebsnummer}:{Credentials.Mitbenutzer}:{Credentials.PIN}");
               objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_SECRET);
             }
             else  {
               // da Secret bekannt, wird nur BNR und MBN geliefert, die PIN bleibt leer (also "bnr:mbn:" statt "bnr:mbn:pin")
               objThisUA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("basic",$"{Credentials.Betriebsnummer}:{Credentials.Mitbenutzer}:");
-              objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,strThisCurrentSecret);
+              objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,Secret);
             }
             // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
             objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,(pboolEndSession ? -1 : Credentials.Timeout).ToString());
@@ -169,12 +171,12 @@ Program.log("No Credentials for HttpClient!");
             // mit unseren eigenen Headern die Credentials setzen
             objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_BNR,Credentials.Betriebsnummer);
             objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_MBN,Credentials.Mitbenutzer);
-            if (strThisCurrentSecret == null) {
+            if (Secret == null) {
               objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_PIN,Credentials.PIN);
               objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_SECRET);
             }
             else  {
-              objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,strThisCurrentSecret);
+              objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,Secret);
             }
             // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
             objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,(pboolEndSession ? -1 : Credentials.Timeout).ToString());
@@ -202,8 +204,8 @@ Program.log("-----");
     /// in der Konfiguration vermerkte REST-Service probiert wird
     /// </summary>
     public void forceNextHost() {
-      objThisUA             = null;
-      strThisCurrentSecret  = null;
+      objThisUA = null;
+      Secret    = null;
     }
 
 
@@ -241,10 +243,10 @@ Program.log("RestClient.CreateURI() -> "+objUri);
         return objThisCredentials;
       }
       set {
-        objThisCredentials        = value;
+        objThisCredentials  = value;
 
         // wurden neue Credentials gesetzt, dann gilt ein vorhandenes Secret nicht mehr
-        strThisCurrentSecret  = null;
+        Secret              = null;
       }
     }
 
@@ -256,9 +258,15 @@ Program.log("RestClient.CreateURI() -> "+objUri);
     /// <summary>
     /// Liefere aktuellen Secret. Kann auch <tt>null</tt> sein, wenn keiner geliefert oder gewünscht.
     /// </summary>
-    public String Secret { get {
-      return strThisCurrentSecret;
-    }}
+    public String Secret {
+      get {
+        return strThisCurrentSecret;
+      }
+      private set {
+        strThisCurrentSecret = value; 
+Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":strThisCurrentSecret)+" at\n"+new System.Diagnostics.StackTrace());
+      }
+    }
 
 
 
@@ -333,9 +341,9 @@ Program.log("RestClient.CreateURI() -> "+objUri);
       }
 
       // wenn wir noch kein Secret haben, dann versuche, den zu extrahieren
-      if (strThisCurrentSecret == null && objContent.ContainsKey("cache_secret")) {
+      if (Secret == null && objContent.ContainsKey("cache_secret")) {
         String  strCacheSecret  = (String)objContent["cache_secret"];
-        if (!String.IsNullOrEmpty(strCacheSecret))  strThisCurrentSecret = strCacheSecret;
+        if (!String.IsNullOrEmpty(strCacheSecret))  Secret = strCacheSecret;
       }
 
 if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent)  {
