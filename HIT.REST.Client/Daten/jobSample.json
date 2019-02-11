@@ -21,6 +21,19 @@
       "Entity": "Zugang",
       "InputPath": "Daten\\ZugangRequest.txt",
       "OutputPath": "Daten\\ZugangResponse.txt"
+    },
+    {
+      "Description": "Meldung Zugänge via CSV",
+      "Action": "IS",
+      "Blocksize": 20,
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenCSV.txt"
+    },
+    {
+      "Description": "Meldung Zugänge via JSON",
+      "Action": "IS",
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenJSON.txt"
     }
   ]
 }

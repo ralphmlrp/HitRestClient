@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 
 using HIT.REST.Client.config;
@@ -200,14 +199,13 @@ Console.WriteLine(e.ToString());
         tee("-> Verb "+task.GetVerb());
 
         switch (task.GetVerb()) {
-          case RestClient.Verb.Get:
-            processGet(task,objClient,objCred);
+          case RestClient.Verb.Get:     // Abfragen RS
+            processQuery(task,objClient,objCred);
             break;
           case RestClient.Verb.Put:
-            break;
           case RestClient.Verb.Post:
-            break;
           case RestClient.Verb.Delete:
+            processSendData(task,objClient,objCred);
             break;
           default:
             break;
@@ -228,7 +226,7 @@ Console.WriteLine(e.ToString());
         }
         objRequest.RestPath = "session";    // eigene Entität für die Beendigung der Session
         HttpResponseMessage objResponse;
-        Dictionary<String,Object> objContent = objClient.sendDELETE(objRequest,out objResponse);
+        Dictionary<String,Object> objContent = objClient.sendDELETE(objRequest,null,out objResponse);
         if (objResponse == null) {
           tee($"-> Senden mit Timeout=-1 fehlgeschlagen!?");
         }
@@ -244,7 +242,7 @@ Console.WriteLine(e.ToString());
 //--------------------------------------------------------------------
 
     /// <summary>
-    /// Verarbeite ein Batch-ähnliches Melden von Daten an HIT.
+    /// Verarbeite ein Batch-ähnliches Abfragen von HIT.
     /// Es wird dabei für den gegebenen Task und dazugehörige Anmeldedaten
     /// eine Datei ausgelesen, die in der ersten Zeile die gewünschten
     /// Ausgabespalten und in den folgenden Zeilen die Abfragen (im CSV-Format)
@@ -254,15 +252,17 @@ Console.WriteLine(e.ToString());
     /// <param name="pobjTask"></param>
     /// <param name="pobjClient"></param>
     /// <param name="pobjCred">Für die URI, um ggf. Anmeldeinformationen mitgeben zu können</param>
-    private static void processGet(Task pobjTask,RestClient pobjClient,Credentials pobjCred)  {
+    private static void processQuery(Task pobjTask,RestClient pobjClient,Credentials pobjCred)  {
+      if (!pobjTask.IsQuery()) throw new ArgumentException(nameof(pobjTask),"Nur ein Task für eine Abfrage ist zulässig.");
+
       Stopwatch watch = new Stopwatch();
 
       // Input-Datei öffnen
       using (TextReader objIn = new StreamReader(pobjTask.InputPath)) {
 
         // die erste Zeile enthält die Ausgabespalten:
-        String strOutput = objIn.ReadLine();
-        log("GET '"+pobjTask.Display+"': columns="+strOutput);
+        String strColumns = objIn.ReadLine();
+        log("GET '"+pobjTask.Display+"': columns="+strColumns);
         bool headerWritten = false;
 
         // wir schreiben eine Ausgabedatei mit den Datenzeilen
@@ -278,8 +278,8 @@ Console.WriteLine(e.ToString());
 
             // die Zeile ist die Bedingung, also zusammenstellen:
             URI objRequest = pobjTask.CreateURI(pobjClient,pobjCred); // der Task braucht den Client, damit ggf. ein Secret übernommen werden kann
-            objRequest.Query.Add("columns",strOutput);
-            objRequest.Query.Add("condition",strLine);
+            objRequest.Query.Add("columns",   strColumns);
+            objRequest.Query.Add("condition", strLine);
 
             // Senden
             HttpResponseMessage objResponse;
@@ -330,10 +330,6 @@ Console.WriteLine(e.ToString());
                 tee("Fehler: "+strErr);
                 break;
               }
-
-              // analyze objResponse
-              // TODO
-
             }
           }
 
@@ -353,26 +349,164 @@ Console.WriteLine(e.ToString());
     }
 
 
-    private static void doQuery(HttpClient client,Credentials pobjLogin,Task pobjTask) {
-      // erst mal alle Zeilen aus der Inputdatei lesen
-      List<String> astrLines = new List<String>(File.ReadAllLines(pobjTask.InputPath));
-      // es müssen mind. 2 sein
-      if (astrLines.Count < 2) {
-        writeFailure(pobjTask,"Datei '"+pobjTask.InputPath+"' für Abfrage enthält zuwenig Zeilen!");
-        return;
+
+    /// <summary>
+    /// Verarbeite ein Batch-ähnliches Melden von Daten an HIT.
+    /// Es wird dabei für den gegebenen Task und dazugehörige Anmeldedaten
+    /// eine Datei ausgelesen, die in der ersten Zeile die
+    /// Spaltennamem und in den folgenden Zeilen die Datenspalten (im CSV-Format)
+    /// enthält. Spalten und Daten werden in ein JSON-Format gebracht und als
+    /// HttpContent gesendet.
+    /// </summary>
+    /// <param name="pobjTask"></param>
+    /// <param name="pobjClient"></param>
+    /// <param name="pobjCred">Für die URI, um ggf. Anmeldeinformationen mitgeben zu können</param>
+    private static void processSendData(Task pobjTask,RestClient pobjClient,Credentials pobjCred) {
+      if (pobjTask.IsQuery()) throw new ArgumentException(nameof(pobjTask),"Nur ein Task für Meldungen ist zulässig.");
+
+
+      RestClient.Verb enumVerb =  pobjTask.GetVerb();
+
+      // Input-Datei öffnen
+      using (TextReader objIn = new StreamReader(pobjTask.InputPath)) {
+
+        // die erste Zeile enthält die Datenspalten:
+        String strColumns = objIn.ReadLine();
+        log(enumVerb+" '"+pobjTask.Display+"' with columns "+strColumns);
+
+        String[] astrCols = strColumns.Split(';');
+
+        // alle weiteren Zeilen enthalten je eine Datenzeile für PUT/POST/DELETE
+        // wird Blocksatz benutzt, dann werden erst mal Zeilenweise so lange Daten gesammelt
+        // und gespeichert, bis man sie als Ganzes ausgibt
+        String strLine;
+        int    intLines = 0;
+        List<Dictionary<String,String>> objBlock = null;
+        while ((strLine = objIn.ReadLine()) != null)  {
+          ++intLines;
+
+          String[] astrDatas = strLine.Split(';');
+          if (astrCols.Length != astrDatas.Length)  {
+            throw new ArgumentException("Anzahl Spaltennamen (="+astrCols.Length+") und Daten (="+astrDatas.Length+") sind nicht identisch!");
+          }
+
+          // Datensatz bilden:
+          // da wir ein JObject benötigen, bauen wir eines aus dieser Zeile via Dictionary
+          Dictionary<String,String> objJObject = new Dictionary<String,String>();
+          for (int i=0; i<astrCols.Length; ++i) {
+            objJObject[astrCols[i]] = astrDatas[i];
+          }
+
+          // der HttpContent legt den Inhalt der Anfrage fest
+          HttpContent objHttpPost;
+          if (pobjTask.Blocksize != null && pobjTask.Blocksize > 1) {
+            if (objBlock == null) objBlock = new List<Dictionary<String,String>>();
+
+            // Datensatz in Liste
+            objBlock.Add(objJObject);
+
+            // ist die Liste so lang wie Blocksize, dann HttpContent vorbereiten
+            if (objBlock.Count == pobjTask.Blocksize) {
+              // konvertiere in JSON
+              objHttpPost = new StringContent(JsonConvert.SerializeObject(objBlock),Encoding.UTF8,"application/json");
+              // Liste von JObjects leeren für nächsten Block
+              objBlock.Clear();
+            }
+            else  {
+              // wenn Block noch nicht voll, dann verarbeite nächste Zeile
+              continue;
+            }
+          }
+          else  {
+            // wir haben keinen Blocksatz, also nur den Datensatz als solches senden
+            objHttpPost = new StringContent(JsonConvert.SerializeObject(objJObject),Encoding.UTF8,"application/json");
+          }
+
+          if (!sendDataAndHandleResult(pobjTask,objHttpPost,pobjClient,pobjCred)) {
+            // brich ab, wenn Senden und Empfangen fehlschlug
+            break;
+          }
+
+        }
+
+        // hat der Block noch Datensätze, dann abschließend senden
+        if (objBlock.Count > 0) {
+          // konvertiere in JSON
+          HttpContent objHttpPost = new StringContent(JsonConvert.SerializeObject(objBlock),Encoding.UTF8,"application/json");
+          sendDataAndHandleResult(pobjTask,objHttpPost,pobjClient,pobjCred);
+        }         
+
+        tee("-> "+Helper.getForNum(intLines,"Eine Abfrage","* Abfragen","*")+" verarbeitet");
       }
-
-      string strCond =  astrLines[0]; astrLines.RemoveAt(0);
-
-      // URL
-      //      String strURL = po
-
-      GetEntity(client,pobjTask.Entity,strCond);
-
-
-
     }
 
+
+
+
+    private static bool sendDataAndHandleResult(Task pobjTask,HttpContent pobjContent,RestClient pobjClient,Credentials pobjCred) {
+      RestClient.Verb enumVerb =  pobjTask.GetVerb();
+
+      Stopwatch watch = new Stopwatch();
+      watch.Start();
+
+      // die Zeile ist die Bedingung, also zusammenstellen:
+      URI objRequest = pobjTask.CreateURI(pobjClient,pobjCred); // der Task braucht den Client, damit ggf. ein Secret übernommen werden kann
+
+      // Senden per zum Task passenden Verb
+      HttpResponseMessage       objResponse;
+      Dictionary<String,Object> objContent  = null;
+      switch (enumVerb) {
+        case RestClient.Verb.Put:
+          objContent = pobjClient.sendPUT(objRequest,pobjContent,out objResponse);
+          break;
+        case RestClient.Verb.Post:
+          objContent = pobjClient.sendPOST(objRequest,pobjContent,out objResponse);
+          break;
+        case RestClient.Verb.Delete:
+          objContent = pobjClient.sendDELETE(objRequest,pobjContent,out objResponse);
+          break;
+
+        default:
+          tee("Falsches Verb "+enumVerb+"!");
+          return false;
+      }
+
+      // die Antwort, die wir erhalten, enthält nur Fehlermeldungen;
+      // die schreiben wir einfach nur ins Logfile
+      watch.Stop();
+      if (objResponse == null) {
+        tee($"-> Senden nach {watch.ElapsedMilliseconds}ms fehlgeschlagen!?");
+        return false;
+      }
+
+
+      tee($"-> Antwort nach  {watch.ElapsedMilliseconds}ms");
+
+      log("Status: "+((int)objResponse.StatusCode)+" "+objResponse.ReasonPhrase);
+      if (objResponse.IsSuccessStatusCode)  {
+        // aus der Antwort das relevante extrahieren: Daten und Antwortzeilen
+        JObject objEntityDaten  = (JObject)objContent["daten"       ];
+        // objEntityDaten enthält Basisentität -> Liste von Datenzeilen
+        // da wir hier nur eine Entität abfragen, bekommen wir auch nur eine Datenliste:
+        JArray  objDaten        = (JArray )objEntityDaten[pobjTask.Entity];
+        JArray  objAntworten    = (JArray )objContent["antworten"   ];
+        // objDaten enthält Liste von Antwortzeilen
+
+        // die Antworten ins Log
+        log(objContent.ToString());
+      }
+      else  {
+        // Fehler holen:
+        String strErr = (String)objContent["Message"];
+        tee("Fehler: "+strErr);
+
+
+        return false;
+      }
+
+      return true;
+    }
+    
 
 
 //--------------------------------------------------------------------

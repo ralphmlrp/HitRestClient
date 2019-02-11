@@ -336,7 +336,7 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
         objContent = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
       }
       catch (Exception e)  {
-        Program.log("Keine Verbindung zu "+pobjUri+" möglich!");
+        Program.log("Keine Verbindung zu "+pobjUri+" möglich!\n"+e);
         return null;
       }
 
@@ -367,8 +367,8 @@ if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent)
       return send(Verb.Post,pobjUri,pobjRequestContent,out pobjResponse);
     }
 
-    public Dictionary<String,Object> sendDELETE(URI pobjUri,out HttpResponseMessage pobjResponse)  {
-      return send(Verb.Delete,pobjUri,null,out pobjResponse);
+    public Dictionary<String,Object> sendDELETE(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
+      return send(Verb.Delete,pobjUri,pobjRequestContent,out pobjResponse);
     }
     
 

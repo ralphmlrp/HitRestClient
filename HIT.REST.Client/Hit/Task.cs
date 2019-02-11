@@ -27,6 +27,11 @@ namespace HIT.REST.Client.Hit {
     public String Subcodes  { get; set; }
 
     /// <summary>
+    /// Blockgröße zum Senden von Daten. Hat keine Auswirkung bei Abfragen.
+    /// </summary>
+    public int?   Blocksize { get; set; }
+
+    /// <summary>
     /// Für welche Entität soll gemeldet bzw. abgefragt werden?
     /// </summary>
     public String Entity    { get; set; }
@@ -102,9 +107,22 @@ namespace HIT.REST.Client.Hit {
     }
 
 
+    /// <summary>
+    /// Liefert HITP-Aktion in GROSSbuchstaben.
+    /// </summary>
+    /// <returns></returns>
     public char GetHitAction()  {
       if (!isValidAction()) return default(char);
-      return Action[0];
+      return (Action.ToUpper())[0];
+    }
+
+
+    /// <summary>
+    /// Ist der Task für eine Abfrage?
+    /// </summary>
+    /// <returns>ja / nein</returns>
+    public bool IsQuery() {
+      return 'R'.Equals(GetHitAction());
     }
 
 
