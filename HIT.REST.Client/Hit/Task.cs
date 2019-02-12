@@ -42,6 +42,11 @@ namespace HIT.REST.Client.Hit {
     public String InputPath  { get; set; }
 
     /// <summary>
+    /// Was enthält der InputPath? "CSV" oder "JSON"?
+    /// </summary>
+    public String InputMode  { get; set; }
+
+    /// <summary>
     /// In welche Datei soll das Ergebnis?
     /// </summary>
     public String OutputPath  { get; set; }
@@ -175,6 +180,56 @@ namespace HIT.REST.Client.Hit {
       }
 
       return strCmd;
+    }
+
+
+
+    public bool IsValidInputMode()  {
+      // erst per se prüfen
+      NormalizeInputMode();
+      if (InputMode == null)  return false;
+
+      bool isJSON = false;
+      switch (InputMode)  {
+        case "CSV":
+          break;
+        case "JSON":
+          isJSON = true;
+          break;
+
+        default:
+          // falscher Wert
+          return false;
+      }
+
+      // wir haben hier nur noch "CSV" und "JSON"
+      // JSON geht nur bei PUT/POST/DELETE, CSV immer
+      // also JSON bei GET liefert false
+      RestClient.Verb enumVerb = GetVerb();
+      if (isJSON && enumVerb == RestClient.Verb.Get)  {
+        // no good.
+        return false;
+      }
+
+      return true;
+    }
+
+    private void NormalizeInputMode() {
+      if (String.IsNullOrWhiteSpace(InputMode)) {
+        InputMode = null;
+      }
+      else  {
+        InputMode = InputMode.ToUpperInvariant();
+      }
+    }
+
+    public bool IsInputModeCSV()  {
+      NormalizeInputMode();
+      return String.Equals("CSV",InputMode);
+    }
+    public bool IsInputModeJSON()  {
+      NormalizeInputMode();
+      return String.Equals("JSON",InputMode);
     }
 
 

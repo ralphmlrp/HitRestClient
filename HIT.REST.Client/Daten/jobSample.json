@@ -13,6 +13,7 @@
       "Subcodes": "H",
       "Entity": "Geburt",
       "InputPath": "Daten\\GeburtRequest.txt",
+      "InputMode": "CSV",
       "OutputPath": "Daten\\GeburtResponse.txt"
     },
     {
@@ -20,6 +21,7 @@
       "Action": "RS",
       "Entity": "Zugang",
       "InputPath": "Daten\\ZugangRequest.txt",
+      "InputMode": "CSV",
       "OutputPath": "Daten\\ZugangResponse.txt"
     },
     {
@@ -27,13 +29,15 @@
       "Action": "IS",
       "Blocksize": 20,
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenCSV.txt"
+      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputMode": "CSV"
     },
     {
       "Description": "Meldung Zugänge via JSON",
       "Action": "IS",
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenJSON.txt"
+      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputMode": "JSON"
     }
   ]
 }

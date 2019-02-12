@@ -108,7 +108,7 @@ namespace HIT.REST.Client.Hit {
     /// </summary>
     /// <param name="pboolEndSession">Wird <tt>true</tt> angegeben, wird eine URI so gebildet, dass eine ggf. bestehende Sitzung durch explizites Setzen eines negativen Timeouts beendet wird.</param>
     public HttpClient CurrentHttpClient(bool pboolEndSession = false) {
-Program.log("RestClient.CurrentHttpClient("+(pboolEndSession?"true":"false")+") ...");
+//Program.log("RestClient.CurrentHttpClient("+(pboolEndSession?"true":"false")+") ...");
       if (objThisUA == null)  {
         // da ist noch keiner, also anlegen
         intThisBaseUrlIndex++;
@@ -118,7 +118,7 @@ Program.log("RestClient.CurrentHttpClient("+(pboolEndSession?"true":"false")+") 
 
         // der nächste:
         BaseUrlElement  objBaseUrl = config.BaseUrls[intThisBaseUrlIndex];
-Program.log("\tTry BaseUrl \""+objBaseUrl.BaseUrl+"\" for new connection ...");
+Program.log("RestClient.CurrentHttpClient(): try BaseUrl \""+objBaseUrl.BaseUrl+"\" for new connection ...");
 
         // Anlegen inkl. vorbereiteter Header für Authentication
         objThisUA = new HttpClient();
@@ -138,10 +138,7 @@ Program.log("RestClient.prepareHttpClient("+(pboolEndSession?"true":"false")+") 
 
       // Mit Credentials speziell für den zu verwendenden
       // Autorisierungsmodus weitere Angaben setzen
-      if (Credentials == null) {
-Program.log("No Credentials for HttpClient!");
-      }
-      else  {
+      if (Credentials != null) {
         // die Header erst wieder entfernen, bevor wir sie neu setzen, da es kein Überschreiben gibt!
         objThisUA.DefaultRequestHeaders.Authorization = null;
         objThisUA.DefaultRequestHeaders.Remove(HTTP_HEADER_AUTH_BNR);
@@ -192,10 +189,10 @@ Program.log("No Credentials for HttpClient!");
             break;
         }
       }
-Program.log("HttpClient:\n-----");
-Program.log("VERB "+objThisUA.BaseAddress);
-Program.log(objThisUA.DefaultRequestHeaders.ToString());
-Program.log("-----");
+//Program.log("HttpClient:\n-----");
+//Program.log("VERB "+objThisUA.BaseAddress);
+//Program.log(objThisUA.DefaultRequestHeaders.ToString());
+//Program.log("-----");
     }
 
 
@@ -233,7 +230,7 @@ Program.log("-----");
       objUri.Port     = objBaseUrl.Port;
       objUri.BasePath = (objBaseUrl.RootPath == null ? "" : "/"+objBaseUrl.RootPath)+config.BasePath.path;   // das ist der feste Pfadbestandteil
 
-Program.log("RestClient.CreateURI() -> "+objUri);
+//Program.log("RestClient.CreateURI() -> "+objUri);
       return objUri;
     }
 
@@ -264,7 +261,7 @@ Program.log("RestClient.CreateURI() -> "+objUri);
       }
       private set {
         strThisCurrentSecret = value; 
-Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":strThisCurrentSecret)+" at\n"+new System.Diagnostics.StackTrace());
+//Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":strThisCurrentSecret)+" at\n"+new System.Diagnostics.StackTrace());
       }
     }
 
@@ -299,7 +296,7 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
 
       HttpClient objUA = CurrentHttpClient();
       if (objUA == null)  {
-        Program.log("#> No UA available!");
+        Program.log("-> No HTTP client available!");
         // gar kein HIT3-REST-Service war erreichbar
         return null;
       }
@@ -308,7 +305,7 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
       prepareHttpClient();
 
       try {
-        Program.log("#> send "+penumVerb+" "+pobjUri.ToString());
+//Program.log("#> send "+penumVerb+" "+pobjUri.ToString());
         switch (penumVerb)  {
           case Verb.Get:
             pobjResponse = objUA.GetAsync(pobjUri.ToString()).Result;
@@ -331,8 +328,8 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
             break;
         }
 
-        Program.log("#> rcvd HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase);
-        Program.log("#> grab response");
+//Program.log("#> rcvd HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase);
+//Program.log("#> grab response");
         objContent = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
       }
       catch (Exception e)  {
@@ -346,9 +343,9 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
         if (!String.IsNullOrEmpty(strCacheSecret))  Secret = strCacheSecret;
       }
 
-if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent)  {
-  Program.log(pair.Key+"\t=> "+pair.Value+" ["+pair.Value?.GetType()?.FullName+"]");
-}
+//if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent)  {
+//  Program.log(pair.Key+"\t=> "+pair.Value+" ["+pair.Value?.GetType()?.FullName+"]");
+//}
       
       return objContent;
     }
