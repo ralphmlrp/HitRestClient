@@ -70,10 +70,35 @@ namespace HIT.REST.Client.Hit {
       strThisScheme   = pobjSource.strThisScheme;
       Host            = pobjSource.Host;
       Port            = pobjSource.Port;
-      strThisBasePath = pobjSource.strThisBasePath;
+      BasePath        = pobjSource.strThisBasePath;
       RestPath        = pobjSource.RestPath;
       Query           = new NameValueCollection(pobjSource.Query);      // copy
       Fragment        = pobjSource.Fragment;
+    }
+
+
+    /// <summary>
+    /// Liefere Kombination aus BasePath und RestPath.
+    /// </summary>
+    public String FullPath {
+      get {
+        if (String.IsNullOrEmpty(BasePath)) {
+          if (String.IsNullOrEmpty(RestPath)) {
+            return "";
+          }
+          else  {
+            return RestPath;
+          }
+        }
+        else  {
+          if (String.IsNullOrEmpty(RestPath)) {
+            return BasePath;
+          }
+          else  {
+            return BasePath+"/"+RestPath;
+          }
+        }
+      }
     }
 
 
@@ -104,10 +129,8 @@ namespace HIT.REST.Client.Hit {
       }
 
       // "path"
-      String fullPath = BasePath+"/";
-      if (RestPath != null) fullPath += RestPath;
       // zum Urlencoden zerlegen
-      String[] astrFolders = fullPath.Split('/');
+      String[] astrFolders = FullPath.Split('/');
       bool first = true;
       foreach (String folder in astrFolders) {
         if (first) first=false; else strBuf.Append("/");

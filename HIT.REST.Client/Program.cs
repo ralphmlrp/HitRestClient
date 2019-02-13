@@ -92,10 +92,11 @@ Console.WriteLine(e.ToString());
     /// </summary>
     /// <param name="pstrJobFiles"></param>
     private static void run(String[] pstrJobFiles) {
-      if (!testServices())  return;
+      RestClient objService = findService();
+      if (objService == null) return;
 
       foreach (String strJobFile in pstrJobFiles) {
-        runJob(strJobFile);
+        runJob(objService,strJobFile);
       }
     }
 
@@ -104,28 +105,28 @@ Console.WriteLine(e.ToString());
     /// <summary>
     /// Finde den HIT3-REST-Service, der auf unsere Anfragen reagieren soll
     /// </summary>
-    /// <returns></returns>
-    private static bool testServices() {
+    /// <returns><see cref="RestClient"/></returns>
+    private static RestClient findService() {
 
-      // unseren RestClient vorbereiten, der sich um die Kommunikation mit HIT3-REST kümmert
-      RestClient          objClient   = new RestClient(staticConfig);
-      HttpResponseMessage objResponse = null;
+      // den RestClient geben lassen, der für die weitere Kommunikation zuständig ist
+      RestClient objClient   = null;
 
-      // Setzen von objClient.Credentials nicht nötig
+      int intUrlIndex = 0;
+      while (objClient == null) {
+        // ist noch einer verfügbar?
+        if (intUrlIndex >= staticConfig.BaseUrls.Count) break;
 
-      while (objResponse == null) {
-        // der Client gibt die Basis-URL je nach AuthenticationMode vor
-        URI objRequest = objClient.CreateURI();
-        // gibt's keine URI, ist kein Client (und somit Service) verfügbar
-        if (objRequest == null) break;
-
-        // die URI reicht schon für eine Test-Anfrage
-        log("Anfrage an "+objRequest+":");
-        Dictionary<String,Object> objContent = objClient.sendGET(objRequest,out objResponse);
+        // lege RestClient für nächste BaseUrl an
+        objClient = new RestClient(staticConfig.BaseUrls[intUrlIndex++],staticConfig.BasePath);
+        // Basis-URI des Clients geben lassen
+        URI objURI = objClient.prepareFor(null);
+        // frage an, ob der reagiert
+        HttpResponseMessage objResponse = null;
+        Dictionary<String,Object> objContent = objClient.sendGET(objURI,out objResponse);
         if (objResponse == null)  {
-          // der Service reagierte nicht, den nächsten versuchen
+          // der Service reagierte nicht -> den nächsten versuchen
           log("-> keine Reaktion!");
-          objClient.forceNextHost();
+          objClient = null;
           continue;
         }
 
@@ -136,23 +137,27 @@ Console.WriteLine(e.ToString());
             JArray  fehlerliste = (JArray)objContent["Fehlerliste"];
             JObject firstError  = (JObject)fehlerliste[0];
             String  strMsg      = (String)firstError["Message"];
-            if (strMsg.StartsWith("Version "))  {
+            if (strMsg.StartsWith("HIT3 Version "))  {      // Analog HitController.IsServiceAvailable() !
               // sieht nach korrekter Antwort aus
               log("-> HIT3 REST "+strMsg+" gefunden");
               continue;
             }
           }
-          catch (Exception) {}
+          catch (Exception e) {
+            // der Service reagierte anders/falsch, den nächsten versuchen
+            log("-> HIT3 REST lieferte etwas anderes\n"+objContent);
+            log(e.ToString());
+            objClient = null;
+          }
         }
         else  {
+          // der Service reagierte zwar, aber nicht mit Erfolgsmeldung -> den nächsten versuchen
           log("-> falscher Request - HTTP Status "+((int)objResponse.StatusCode)+" "+objResponse.ReasonPhrase);
-          objClient.forceNextHost();
+          objClient = null;
         }
-
-        objResponse = null; // bedeutet: nächsten Host probieren
       }
 
-      return (objResponse != null);
+      return objClient;
     }
 
 
@@ -165,7 +170,7 @@ Console.WriteLine(e.ToString());
     /// Führe den Job aus, indem seine Tasks der Reihe nach an HIT3-REST gesendet werden.
     /// </summary>
     /// <param name="pstrJobPath"></param>
-    public static void runJob(String pstrJobPath) {
+    public static void runJob(RestClient pobjClient,String pstrJobPath) {
       // deserialize Job description
       Job objJob = Job.fromFile(pstrJobPath);
       if (objJob == null) return; // Fehlermeldung ist bereits protokolliert
@@ -183,11 +188,8 @@ Console.WriteLine(e.ToString());
       tee("Tasks   : "+Helper.getForNum(objJob.Tasks.Count,"eine Anfrage","* Anfragen","*"));
       tee(new String('-',16));
 
-      // unseren RestClient vorbereiten, der sich um die Kommunikation mit HIT3-REST kümmert
-      RestClient objClient = new RestClient(staticConfig);
-
       // der Client braucht die Credentials, also
-      objClient.Credentials  = objCred;
+      pobjClient.Credentials  = objCred;
 
       // jetzt einfach einen Task nach dem anderen abarbeiten
       int intTaskCounter = 0;
@@ -200,13 +202,13 @@ Console.WriteLine(e.ToString());
 //        tee("-> Verb "+task.GetVerb());
         switch (task.GetVerb()) {
           case RestClient.Verb.Get:     // Abfragen RS
-            processQuery(task,objClient,objCred);
+            processQuery(task,pobjClient,objCred);
             break;
 
           case RestClient.Verb.Put:
           case RestClient.Verb.Post:
           case RestClient.Verb.Delete:
-            processSendData(task,objClient,objCred);
+            processSendData(task,pobjClient,objCred);
             break;
 
           default:
@@ -216,21 +218,20 @@ Console.WriteLine(e.ToString());
 
       // am Ende zusätzlich ein explizites Beenden der REST-Sitzung durchführen
       // (sofern eine Sitzung existiert)
-      if (objClient.Secret != null) {
-        URI objRequest = objClient.CreateURI(true);
+      if (pobjClient.Secret != null) {
+        URI objRequest = pobjClient.prepareFor(null);
         //objRequest.Query["bnr"] = objCred.Betriebsnummer;
         //if (!String.IsNullOrWhiteSpace(objCred.Mitbenutzer))  {
         //  objRequest.Query["mbn"] = objCred.Mitbenutzer;
         //}
         if (objCred.AuthenticationMode == AuthMode.QueryString) {
-          objRequest.Query["cacheTimeout"]  = "-1";
-          objRequest.Query["cacheSecret"]   = objClient.Secret;             
+          objRequest.Query["cacheSecret"]   = pobjClient.Secret;             
         }
         objRequest.RestPath = "session";    // eigene Entität für die Beendigung der Session
         HttpResponseMessage objResponse;
-        Dictionary<String,Object> objContent = objClient.sendDELETE(objRequest,null,out objResponse);
+        Dictionary<String,Object> objContent = pobjClient.sendDELETE(objRequest,null,out objResponse);
         if (objResponse == null) {
-          tee($"-> Senden mit Timeout=-1 fehlgeschlagen!?");
+          tee($"-> DELETE Session fehlgeschlagen!?");
         }
         else {
           tee($"-> Abgemeldet.");
@@ -284,7 +285,7 @@ Console.WriteLine(e.ToString());
             watch.Start();
 
             // die Zeile ist die Bedingung, also zusammenstellen:
-            URI objRequest = pobjTask.CreateURI(pobjClient,pobjCred); // der Task braucht den Client, damit ggf. ein Secret übernommen werden kann
+            URI objRequest = pobjClient.prepareFor(pobjTask);
             objRequest.Query.Add("columns",   strColumns);
             objRequest.Query.Add("condition", strLine);
 
@@ -334,7 +335,13 @@ Console.WriteLine(e.ToString());
               }
               else  {
                 // Fehler holen:
-                String strErr = (String)objContent["Message"];
+                String strErr;
+                if (objContent == null) {
+                  strErr = "Kein Inhalt geliefert?!";
+                }
+                else  {
+                  strErr = (String)objContent["Message"];
+                }
                 tee("Fehler: "+strErr);
                 break;
               }
@@ -351,7 +358,7 @@ Console.WriteLine(e.ToString());
 //            log("Gelöscht: "+pobjTask.OutputPath);
           }
         }
-        catch (Exception e) { log("Konnte leere Datei '"+pobjTask.OutputPath+"'nicht löschen! "+e); }
+        catch (Exception e) { log("Konnte leere Datei '"+pobjTask.OutputPath+"'nicht löschen!? "+e); }
       }
     }
 
@@ -473,7 +480,7 @@ Console.WriteLine(e.ToString());
       watch.Start();
 
       // die Zeile ist die Bedingung, also zusammenstellen:
-      URI objRequest = pobjTask.CreateURI(pobjClient,pobjCred); // der Task braucht den Client, damit ggf. ein Secret übernommen werden kann
+      URI objRequest = pobjClient.prepareFor(pobjTask);
 log(enumVerb+" "+objRequest);
 log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
       // Senden per zum Task passenden Verb
@@ -521,10 +528,14 @@ log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
       }
       else  {
         // Fehler holen:
-        String strErr = (String)objContent["Message"];
+        String strErr;
+        if (objContent == null) {
+          strErr = "Kein Inhalt geliefert?!";
+        }
+        else  {
+          strErr = (String)objContent["Message"];
+        }
         tee("Fehler: "+strErr);
-
-
         return false;
       }
 

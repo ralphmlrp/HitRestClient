@@ -234,55 +234,6 @@ namespace HIT.REST.Client.Hit {
 
 
 
-    public URI CreateURI(RestClient pobjClient,Credentials pobjCred) {
-      if (pobjClient == null)  throw new ArgumentNullException(nameof(pobjClient),"We need a RestClient for it");
-
-      // der Client gibt die URI vor
-      URI pobjURI = pobjClient.CreateURI();
-      pobjURI.RestPath = Entity;
-
-      // die URI für den Task füllen und dabei AuthenticationMode berücksichtigen
-      if (pobjCred != null) switch (pobjCred.AuthenticationMode) {
-        case AuthMode.AuthenticationHeader:
-          // der HttpClient hat bereits BNR, MBN und PIN via Authorization-Header
-          // gesetzt, ebenso den Timeout und ggf. Secret per eigenem Header
-          // -> da ist nichts weiter zu tun
-          break;
-
-        case AuthMode.SelfmadeHeader:
-          // der HttpClient hat bereits BNR, MBN und PIN via eigener Header gesetzt,
-          // ebenso den Timeout und ggf. Secret
-          // -> da ist nichts weiter zu tun
-          break;
-
-        case AuthMode.QueryString:
-          // Query-Namen exakt genau so wie in HIT.Meldeprogramm.Web.Controllers.RESTv2.HitController !
-          // zusätzlich zur Anfrage dazuhängen
-          pobjURI.Query["bnr"] = pobjCred.Betriebsnummer;
-          if (!String.IsNullOrWhiteSpace(pobjCred.Mitbenutzer))  {
-            pobjURI.Query["mbn"] = pobjCred.Mitbenutzer;
-          }
-          if (pobjClient.Secret == null) {
-            // ohne Secret brauchen wir die PIN
-            pobjURI.Query["pin"] = pobjCred.PIN;
-          }
-          else  {
-            pobjURI.Query["cacheSecret"] = pobjClient.Secret;     
-          }
-          // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
-          pobjURI.Query["cacheTimeout"]  = pobjCred.Timeout.ToString();
-          break;
-
-        case AuthMode.NoAuth:
-        default:
-          // nichts weiter
-          break;
-      }
-
-      return pobjURI;
-    }
-
-
 //--------------------------------------------------------------------
   }
 }

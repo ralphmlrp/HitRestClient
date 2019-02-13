@@ -53,6 +53,10 @@ namespace HIT.REST.Client.config {
       }
     }
 
+    /// <summary>
+    /// Wurzelpfad zur Webanwendung ohne führende und abschließende Slashes.
+    /// Kann <tt>null</tt> sein, wenn keiner vorhanden oder leer.
+    /// </summary>
     [ConfigurationProperty("path", DefaultValue = null)]
     public String RootPath  {
       get { return (String)this["path"]; }
