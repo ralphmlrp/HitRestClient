@@ -184,7 +184,7 @@ Console.WriteLine(e.ToString());
       tee(new String('-',16));
       tee("Job     : #"+staticJobCounter+" mit "+objCred.getUser());
       tee("Login   : "+objCred.getUser());
-      tee("AuthMode: "+Enum.GetName(typeof(AuthMode),objCred.AuthenticationMode));
+      tee("AuthMode: "+Enum.GetName(typeof(AuthMode),objCred.AuthenticationMode)+" ("+(objCred.UseSecret ? "use secret" : "no session!")+")");
       tee("Tasks   : "+Helper.getForNum(objJob.Tasks.Count,"eine Anfrage","* Anfragen","*"));
       tee(new String('-',16));
 

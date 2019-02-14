@@ -118,7 +118,7 @@ namespace HIT.REST.Client.Hit {
       }
       private set {
         strThisCurrentSecret = value; 
-//Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":strThisCurrentSecret)+" at\n"+new System.Diagnostics.StackTrace());
+Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":strThisCurrentSecret)+" at\n"+new System.Diagnostics.StackTrace());
       }
     }
 
@@ -268,13 +268,16 @@ namespace HIT.REST.Client.Hit {
       // bei GET gibt es keinen HttpContent, bei den anderen muss einer dabei sein
       switch (penumVerb) {
         case Verb.Get:
-        case Verb.Delete:
-          if (pobjRequestContent != null) throw new ArgumentNullException(nameof(pobjRequestContent),"Eine "+penumVerb+"-Anfrage hat keinen Inhalt, sondern nur Query-Strings!");
+          if (pobjRequestContent != null) throw new ArgumentException(nameof(pobjRequestContent),"Eine "+penumVerb+"-Anfrage hat keinen Inhalt, sondern nur Query-Strings!");
           break;
 
         case Verb.Put:
         case Verb.Post:
-          if (pobjRequestContent == null) throw new ArgumentNullException(nameof(pobjRequestContent),"Ohne Inhalt keine "+penumVerb+"-Anfrage!");
+          if (pobjRequestContent == null) throw new ArgumentException(nameof(pobjRequestContent),"Ohne Inhalt keine "+penumVerb+"-Anfrage!");
+          break;
+
+        case Verb.Delete:
+          if (pobjRequestContent == null) pobjRequestContent = new StringContent("{}"); // leeres JSON-Objekt anlegen
           break;
       }
 
@@ -299,7 +302,12 @@ namespace HIT.REST.Client.Hit {
             break;
 
           case Verb.Delete:
-            pobjResponse = objThisUA.DeleteAsync(pobjUri.ToString()).Result;
+            // Note: DELETE does NOT support entity body, therefore there's no "content" parameter!
+//            pobjResponse = objThisUA.DeleteAsync(pobjUri.ToString()).Result;
+            // since DELETE does not support a entity body, we set it up on our own:
+            HttpRequestMessage objReq = new HttpRequestMessage(HttpMethod.Delete,pobjUri.ToString());
+            objReq.Content = pobjRequestContent;
+            pobjResponse = objThisUA.SendAsync(objReq).Result;
             break;
 
           default:
@@ -310,6 +318,9 @@ namespace HIT.REST.Client.Hit {
 //Program.log("#> rcvd HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase);
 //Program.log("#> grab response");
         objContent = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
+//if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent) {
+//  Program.log(pair.Key+"\t=> "+pair.Value+" ["+pair.Value?.GetType()?.FullName+"]");
+//}
 
         if (pobjResponse.IsSuccessStatusCode) {
           Program.log("Erfolgreich: "+penumVerb+" "+objThisUA.BaseAddress+pobjUri);
@@ -334,9 +345,6 @@ namespace HIT.REST.Client.Hit {
         objContent = null;
       }
 
-//if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent)  {
-//  Program.log(pair.Key+"\t=> "+pair.Value+" ["+pair.Value?.GetType()?.FullName+"]");
-//}
       return objContent;
     }
 

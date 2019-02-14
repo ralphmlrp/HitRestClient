@@ -1,7 +1,7 @@
 {
   "Credentials": {
     "AuthenticationMode": "QueryString",
-    "UseSecret": false,
+    "UseSecret": true,
     "Betriebsnummer": "09 000 000 0015",
     "Mitbenutzer": "0",
     "PIN": "900015",
@@ -35,6 +35,21 @@
     },
     {
       "Description": "Meldung Zugänge via JSON",
+      "Action": "IS",
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputMode": "JSON"
+    },
+    {
+      "Description": "Storno Zugänge via CSV",
+      "Action": "SS",
+      "Blocksize": 2,
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputMode": "CSV"
+    },
+    {
+      "Description": "Insert Zugänge via JSON",
       "Action": "IS",
       "Entity": "Zugang",
       "InputPath": "Daten\\ZugangDatenJSON.txt",
