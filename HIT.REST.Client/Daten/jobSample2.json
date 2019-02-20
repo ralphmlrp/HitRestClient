@@ -1,0 +1,74 @@
+{
+  "Credentials": {
+    "AuthenticationMode": "QueryString",
+    "UseSecret": true,
+    "Betriebsnummer": "09 000 000 0015",
+    "Mitbenutzer": "0",
+    "PIN": "900015",
+    "Timeout": 20
+  },
+  "Tasks": [
+    {
+      "Description": "Abfrage Geburten mittles CSV",
+      "Action": "RS",
+      "Subcodes": "H",
+      "Entity": "Geburt",
+      "InputPath": "Daten\\GeburtRequest.txt",
+      "InputMode": "CSV",
+      "OutputPath": "Daten\\GeburtResponse.txt"
+    },
+    {
+      "Description": "Abfrage Geburten mittles JSON",
+      "Action": "RS",
+      "Entity": "Geburt",
+      "InputPath": "Daten\\GeburtRequestJSON.json",
+      "InputMode": "JSON",
+      "OutputPath": "Daten\\GeburtResponseJSON.txt"
+    },
+    {
+      "Description": "Abfrage Geburten mit Befehl ...",
+      "Befehl": "*3:RS:Geburt/*:BNR15;=;090000000002",
+      "InputMode": "DIRECT",
+      "OutputMode": "JSON",
+      "OutputPath": "Daten\\GeburtResponseDIRECT.json"
+    },
+    {
+      "Description": "Abfrage Zugänge",
+      "Action": "RS",
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangRequest.txt",
+      "InputMode": "CSV",
+      "OutputPath": "Daten\\ZugangResponse.txt"
+    },
+    {
+      "Description": "Meldung Zugänge via CSV",
+      "Action": "IS",
+      "Blocksize": 20,
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputMode": "CSV"
+    },
+    {
+      "Description": "Meldung Zugänge via JSON",
+      "Action": "IS",
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputMode": "JSON"
+    },
+    {
+      "Description": "Storno Zugänge via CSV",
+      "Action": "SS",
+      "Blocksize": 2,
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputMode": "CSV"
+    },
+    {
+      "Description": "Insert Zugänge via JSON",
+      "Action": "IS",
+      "Entity": "Zugang",
+      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputMode": "JSON"
+    }
+  ]
+}

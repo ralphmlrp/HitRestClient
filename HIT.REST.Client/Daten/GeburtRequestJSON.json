@@ -1,0 +1,10 @@
+﻿[
+  {
+    "Felder": "BNR15;LOM;GEB_DATR;RASSE;GESCHL_R;SYS_VON;SYS_BIS",
+    "Where": "bnr15;=;090000000001"
+  },
+  {
+    "Felder": "BNR15;LOM;GEB_DATR;RASSE;GESCHL_R;SYS_VON;SYS_BIS",
+    "Where": "bnr15;=;09 199 000 0001"
+  }
+]
