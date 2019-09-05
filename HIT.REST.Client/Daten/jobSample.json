@@ -5,7 +5,7 @@
     "Betriebsnummer": "09 000 000 0015",
     "Mitbenutzer": "0",
     "PIN": "900015",
-    "Timeout": 20
+    "TimeoutInSeconds": 20
   },
   "Tasks": [
     {

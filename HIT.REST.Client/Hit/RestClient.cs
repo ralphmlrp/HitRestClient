@@ -1,8 +1,11 @@
-﻿using System;
+﻿using HIT.REST.Client.config;
+
+using Newtonsoft.Json.Linq;
+
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using HIT.REST.Client.config;
 
 
 
@@ -118,7 +121,7 @@ namespace HIT.REST.Client.Hit {
       }
       private set {
         strThisCurrentSecret = value; 
-Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":strThisCurrentSecret)+" at\n"+new System.Diagnostics.StackTrace());
+//Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":strThisCurrentSecret)+" at\n"+new System.Diagnostics.StackTrace());
       }
     }
 
@@ -160,7 +163,7 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
               objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,Secret);
             }
             // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
-            if (!endSession)  objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,Credentials.Timeout.ToString());
+            if (!endSession)  objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,Credentials.TimeoutInSeconds.ToString());
             break;
 
           case AuthMode.SelfmadeHeader:
@@ -175,7 +178,7 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
               objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_SECRET,Secret);
             }
             // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
-            if (!endSession)  objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,Credentials.Timeout.ToString());
+            if (!endSession)  objThisUA.DefaultRequestHeaders.Add(HTTP_HEADER_AUTH_TIMEOUT,Credentials.TimeoutInSeconds.ToString());
             break;
 
           case AuthMode.QueryString:
@@ -230,7 +233,7 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
               objURI.Query["cacheSecret"] = Secret;     
             }
             // der Timeout muss immer geschickt werden, weil der steuert, ob Sitzung bestehen bleibt oder nicht
-            objURI.Query["cacheTimeout"]  = Credentials.Timeout.ToString();
+            objURI.Query["cacheTimeout"]  = Credentials.TimeoutInSeconds.ToString();
             break;
 
           case AuthMode.NoAuth:
@@ -256,13 +259,32 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
 
 
 
+    public T sendGET<T>(URI pobjUri,out HttpResponseMessage pobjResponse) {
+      return send<T>(Verb.Get,pobjUri,null,out pobjResponse);
+    }
+
+    public T sendPUT<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
+      return send<T>(Verb.Put,pobjUri,pobjRequestContent,out pobjResponse);
+    }
+
+    public T sendPOST<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
+      return send<T>(Verb.Post,pobjUri,pobjRequestContent,out pobjResponse);
+    }
+
+    public T sendDELETE<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
+      return send<T>(Verb.Delete,pobjUri,pobjRequestContent,out pobjResponse);
+    }
+
+    
+
     /// <summary>
     /// Sende Anfrage an HIT3-REST.
     /// </summary>
+    /// <typeparam name="T">Gibt an, als welchen Typ die Daten geliefert werden sollen; meist ist es <code>Dictionary&lt;String,Object&gt;</code></typeparam>
     /// <param name="pobjUri"><see cref="URI"/>, die gesendet werden soll</param>
     /// <param name="pobjResponse">Die <see cref="HttpRequestMessage"/></param>
     /// <returns>die vom HIT3-REST-Service erhaltene Antwort in Rohform oder <tt>null</tt>, wenn kein Content gelesen werden konnte</returns>
-    private Dictionary<String,Object> send(Verb penumVerb,URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
+    private T send<T>(Verb penumVerb,URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
       if (pobjUri == null)  throw new ArgumentNullException(nameof(pobjUri),"Eine URI ist unabdingbar!");
 
       // bei GET gibt es keinen HttpContent, bei den anderen muss einer dabei sein
@@ -277,16 +299,16 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
           break;
 
         case Verb.Delete:
-          if (pobjRequestContent == null) pobjRequestContent = new StringContent("{}"); // leeres JSON-Objekt anlegen
+          if (pobjRequestContent == null) pobjRequestContent = new StringContent("{}"); // leeres JSON-Objekt anlegen, wenn keines mitgegeben
           break;
       }
 
-//Program.log("#> send("+penumVerb+"): URI "+pobjUri.ToString()+"\n\tvia "+objThisUA.BaseAddress);
+Program.log("#> send("+penumVerb+"): URI "+pobjUri.ToString()+"\n\tvia "+objThisUA.BaseAddress);
      
       // standardmäßig erst mal keine Antwort
       pobjResponse = null;
 
-      Dictionary<String,Object> objContent = null;
+      T objContent = default(T);
       try {
         switch (penumVerb)  {
           case Verb.Get:
@@ -314,35 +336,47 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
             pobjResponse = null;
             break;
         }
-
-//Program.log("#> rcvd HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase);
-//Program.log("#> grab response");
-        objContent = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
-//if (objContent != null) foreach (KeyValuePair<string,object> pair in objContent) {
-//  Program.log(pair.Key+"\t=> "+pair.Value+" ["+pair.Value?.GetType()?.FullName+"]");
-//}
-
+/*
+Program.log("#> rcvd HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase);
+*/
         if (pobjResponse.IsSuccessStatusCode) {
           Program.log("Erfolgreich: "+penumVerb+" "+objThisUA.BaseAddress+pobjUri);
+/*
+Program.log("#> grab response");
+*/
+          objContent = pobjResponse.Content.ReadAsAsync<T>().Result;    // war <Dictionary<String,Object>>
+/*
+if (objContent is Dictionary<String,Object>) foreach (KeyValuePair<string,object> pair in (objContent as Dictionary<String,Object>))  {
+  Program.log(pair.Key+"\t=> "+pair.Value+" ["+pair.Value?.GetType()?.FullName+"]");
+}
+else if (objContent != null)  {
+  Program.log(objContent.GetType()+": "+objContent.ToString());
+}
+*/
           // wenn wir noch kein Secret haben, dann versuche, den zu extrahieren
           // (aber auch nur, wenn wir das dürfen)
-          if (Credentials != null && Credentials.UseSecret && Secret == null && objContent.ContainsKey("cache_secret")) {
-            String  strCacheSecret  = (String)objContent["cache_secret"];
+          Dictionary<String,Object>  objDictContent = objContent as Dictionary<String,Object>;
+          if (Credentials != null && Credentials.UseSecret && Secret == null && objDictContent != null && objDictContent.ContainsKey("cache_secret")) {
+            String  strCacheSecret  = (String)objDictContent["cache_secret"];
             if (!String.IsNullOrEmpty(strCacheSecret))  Secret = strCacheSecret;
           }
         }
         else  {
           Program.log("Verbindung zu "+objThisUA.BaseAddress+" fehlgeschlagen: HTTP Status "+((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase+"");
-          objContent = null;
+          // Fehlermeldung holen; die wird als Fehlerlist geliefert
+         Dictionary<String,Object> objErrors = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
+Program.tee("> HTTP Fehler: "+objErrors["Message"]);
+          objContent = default(T);
         }
       }
       catch (Exception e)  {
+Program.tee(e.Message+"\n\n"+e.StackTrace.ToString());
         String strStatus = "[null response?!]";
         if (pobjResponse != null) {
           strStatus = ((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase;
         }
         Program.log("Keine Verbindung zu "+objThisUA.BaseAddress+" möglich!? "+strStatus/*+"\n"+e*/);
-        objContent = null;
+        objContent = default(T);
       }
 
       return objContent;
@@ -350,23 +384,6 @@ Program.log("RestClient.Secret set to "+(strThisCurrentSecret==null?"<null>":str
 
 
 
-    public Dictionary<String,Object> sendGET(URI pobjUri,out HttpResponseMessage pobjResponse)  {
-      return send(Verb.Get,pobjUri,null,out pobjResponse);
-    }
-
-    public Dictionary<String,Object> sendPUT(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
-      return send(Verb.Put,pobjUri,pobjRequestContent,out pobjResponse);
-    }
-
-    public Dictionary<String,Object> sendPOST(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
-      return send(Verb.Post,pobjUri,pobjRequestContent,out pobjResponse);
-    }
-
-    public Dictionary<String,Object> sendDELETE(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
-      return send(Verb.Delete,pobjUri,pobjRequestContent,out pobjResponse);
-    }
-    
-
-    //--------------------------------------------------------------------
+//--------------------------------------------------------------------
   }
 }

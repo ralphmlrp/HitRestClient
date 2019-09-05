@@ -8,14 +8,24 @@ namespace HIT.REST.Client.Hit {
   /// Anmeldeinformationen
   /// </summary>
   public class Credentials  {
+//--------------------------------------------------------------------
+
     public AuthMode   AuthenticationMode  { get; set; }
     public bool       UseSecret           { get; set; }
 
     public string     Betriebsnummer      { get; set; }
     public string     Mitbenutzer         { get; set; }
     public string     PIN                 { get; set; }
-    public int        Timeout             { get; set; }
+    public int        TimeoutInSeconds    { get; set; }
 
+
+    public int GetRequestTimeout() {
+      return (UseSecret && TimeoutInSeconds > 0) ? TimeoutInSeconds : -Math.Abs(TimeoutInSeconds);
+    }
+
+
+
+//--------------------------------------------------------------------
 
 
     public Credentials()  {
@@ -33,4 +43,5 @@ namespace HIT.REST.Client.Hit {
 
 
 
+//--------------------------------------------------------------------
 }

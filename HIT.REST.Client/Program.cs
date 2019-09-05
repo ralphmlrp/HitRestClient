@@ -122,17 +122,35 @@ Console.WriteLine(e.ToString());
         URI objURI = objClient.prepareFor(null);
         // frage an, ob der reagiert
         HttpResponseMessage objResponse = null;
-        Dictionary<String,Object> objContent = objClient.sendGET(objURI,out objResponse);
+//        Dictionary<String,Object> objContent = objClient.sendGET(objURI,out objResponse);
+        String strContent = objClient.sendGET<String>(objURI,out objResponse);
         if (objResponse == null)  {
           // der Service reagierte nicht -> den nächsten versuchen
           log("-> keine Reaktion!");
           objClient = null;
           continue;
         }
+//Program.log("findService() response: "+strContent);
 
         // es kam eine Antwort zurück
         if (objResponse.IsSuccessStatusCode)  {
           // Kommt da auch die Versionsnummer zurück?
+          // in der Antwort steht nur der String, den wir haben wollen, also:
+          try {
+            if (strContent.StartsWith("HIT3 Version "))  {      // Analog HitController.IsServiceAvailable() !
+              // sieht nach korrekter Antwort aus
+              log("-> HIT3 REST "+strContent+" gefunden");
+              continue;
+            }
+          }
+          catch (Exception e) {
+            // der Service reagierte anders/falsch, den nächsten versuchen
+            log("-> HIT3 REST lieferte etwas anderes\n"+strContent);
+            log(e.ToString());
+            objClient = null;
+          }
+
+/*
           try {
             JArray  fehlerliste = (JArray)objContent["Fehlerliste"];
             JObject firstError  = (JObject)fehlerliste[0];
@@ -149,6 +167,7 @@ Console.WriteLine(e.ToString());
             log(e.ToString());
             objClient = null;
           }
+*/
         }
         else  {
           // der Service reagierte zwar, aber nicht mit Erfolgsmeldung -> den nächsten versuchen
@@ -229,7 +248,7 @@ Console.WriteLine(e.ToString());
         }
         objRequest.RestPath = "session";    // eigene Entität für die Beendigung der Session
         HttpResponseMessage objResponse;
-        Dictionary<String,Object> objContent = pobjClient.sendDELETE(objRequest,null,out objResponse);
+        Dictionary<String,Object> objContent = pobjClient.sendDELETE<Dictionary<String,Object>>(objRequest,null,out objResponse);
         if (objResponse == null) {
           tee($"-> DELETE Session fehlgeschlagen!?");
         }
@@ -291,7 +310,7 @@ Console.WriteLine(e.ToString());
 
             // Senden
             HttpResponseMessage objResponse;
-            Dictionary<String,Object> objContent = pobjClient.sendGET(objRequest,out objResponse);
+            Dictionary<String,Object> objContent = pobjClient.sendGET<Dictionary<String,Object>>(objRequest,out objResponse);
             // objContent enthält in C# ein JObject mit mehreren Schlüsseln und Werten, die wiederum JObjects und JArrays sind
             // der send() hat einen erzeugten Secret bereits extrahiert, d.h. man muss sich nicht mehr kümmern
             watch.Stop();
@@ -299,7 +318,7 @@ Console.WriteLine(e.ToString());
               tee($"-> Senden nach {watch.ElapsedMilliseconds}ms fehlgeschlagen!?");
             }
             else {
-              tee($"-> Antwort nach  {watch.ElapsedMilliseconds}ms");
+              tee($"-> Antwort nach {watch.ElapsedMilliseconds}ms");
 
               log("Status: "+((int)objResponse.StatusCode)+" "+objResponse.ReasonPhrase);
               if (objResponse.IsSuccessStatusCode)  {
@@ -307,30 +326,37 @@ Console.WriteLine(e.ToString());
                 JObject objEntityDaten  = (JObject)objContent["daten"       ];
                 // objEntityDaten enthält Basisentität -> Liste von Datenzeilen
                 // da wir hier nur eine Entität abfragen, bekommen wir auch nur eine Datenliste:
-                JArray  objDaten        = (JArray )objEntityDaten[pobjTask.Entity];
-                JArray  objAntworten    = (JArray )objContent["antworten"   ];
-                // objDaten enthält Liste von Antwortzeilen
-                intRows += objDaten.Count;
+                String jsonEntity = pobjTask.Entity.ToUpper();
+                if (objEntityDaten.ContainsKey(jsonEntity)) {
+                  JArray  objDaten        = (JArray )objEntityDaten[jsonEntity];
+                  JArray  objAntworten    = (JArray )objContent["antworten"   ];
 
-                // die Daten kommen in die Ausgabedatei
-                if (!headerWritten && objDaten.Count > 0) {
-                  // wir haben noch keinen Header geschrieben, also:
-                  bool first = true;
-                  foreach (JProperty objCols in objDaten[0])  {
-                    if (first) first = false; else objOut.Write(";");
-                    objOut.Write(objCols.Name);
+                  // objDaten enthält Liste von Antwortzeilen
+                  intRows += objDaten.Count;
+
+                  // die Daten kommen in die Ausgabedatei
+                  if (!headerWritten && objDaten.Count > 0) {
+                    // wir haben noch keinen Header geschrieben, also:
+                    bool first = true;
+                    foreach (JProperty objCols in objDaten[0])  {
+                      if (first) first = false; else objOut.Write(";");
+                      objOut.Write(objCols.Name);
+                    }
+                    objOut.WriteLine(""); // EndOfLine
                   }
-                  objOut.WriteLine(""); // EndOfLine
+
+                  // Zeile für Zeile die Daten
+                  foreach (JToken objRows in objDaten) {
+                    bool first = true;
+                    foreach (JProperty objCols in objRows)  {
+                      if (first) first = false; else objOut.Write(";");
+                      objOut.Write(objCols.Value.ToString());
+                    }
+                    objOut.WriteLine(""); // EndOfLine
+                  }
                 }
-
-                // Zeile für Zeile die Daten
-                foreach (JToken objRows in objDaten) {
-                  bool first = true;
-                  foreach (JProperty objCols in objRows)  {
-                    if (first) first = false; else objOut.Write(";");
-                    objOut.Write(objCols.Value.ToString());
-                  }
-                  objOut.WriteLine(""); // EndOfLine
+                else  {
+tee("Keine Daten zu "+jsonEntity+" erhalten ...");
                 }
               }
               else  {
@@ -472,7 +498,6 @@ Console.WriteLine(e.ToString());
 
 
 
-
     private static bool sendDataAndHandleResult(Task pobjTask,HttpContent pobjContent,RestClient pobjClient,Credentials pobjCred) {
       RestClient.Verb enumVerb =  pobjTask.GetVerb();
 
@@ -488,13 +513,13 @@ log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
       Dictionary<String,Object> objContent  = null;
       switch (enumVerb) {
         case RestClient.Verb.Put:
-          objContent = pobjClient.sendPUT(objRequest,pobjContent,out objResponse);
+          objContent = pobjClient.sendPUT<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
           break;
         case RestClient.Verb.Post:
-          objContent = pobjClient.sendPOST(objRequest,pobjContent,out objResponse);
+          objContent = pobjClient.sendPOST<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
           break;
         case RestClient.Verb.Delete:
-          objContent = pobjClient.sendDELETE(objRequest,pobjContent,out objResponse);
+          objContent = pobjClient.sendDELETE<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
           break;
 
         default:

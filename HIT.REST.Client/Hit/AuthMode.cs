@@ -6,6 +6,8 @@ namespace HIT.REST.Client.Hit {
 
   /// <summary>Art der Autorisierung</summary>
   public enum AuthMode  {
+//--------------------------------------------------------------------
+
     /// <summary>Anfrage ohne Autorisierung</summary>
     NoAuth                = 0,
     /// <summary>Anfrage nur per QueryStrings</summary>
@@ -14,6 +16,10 @@ namespace HIT.REST.Client.Hit {
     AuthenticationHeader  = 2,
     /// <summary>Anfrage nur mit eigenen HTTP-Kopfzeilen wie "hit-bnr" etc</summary>
     SelfmadeHeader        = 3,
+
+
+
+//--------------------------------------------------------------------
   }
 
 

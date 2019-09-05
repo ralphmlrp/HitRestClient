@@ -73,10 +73,10 @@ namespace HIT.REST.Client {
 
 
       Job info = new Job();
-      info.Credentials.Betriebsnummer = "09 000 000 0015";
-      info.Credentials.Mitbenutzer    = "0";
-      info.Credentials.PIN            = "900015";
-      info.Credentials.Timeout        = 20;
+      info.Credentials.Betriebsnummer   = "09 000 000 0015";
+      info.Credentials.Mitbenutzer      = "0";
+      info.Credentials.PIN              = "900015";
+      info.Credentials.TimeoutInSeconds = 20;
 
       info.Tasks.Add(new Task() {
         Action      = "RS",
