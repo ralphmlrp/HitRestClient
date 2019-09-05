@@ -74,11 +74,13 @@
     <None Include="app.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="Daten\jobSample2.json" />
     <None Include="Daten\jobSample.json" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
+    <None Include="Daten\GeburtRequestJSON.json" />
     <Content Include="Daten\GeburtResponse.txt" />
     <Content Include="Daten\ZugangDatenJSON.txt" />
     <Content Include="Daten\ZugangDatenCSV.txt" />
