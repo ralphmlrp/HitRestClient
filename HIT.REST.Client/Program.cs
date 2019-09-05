@@ -139,14 +139,14 @@ Console.WriteLine(e.ToString());
           try {
             if (strContent.StartsWith("HIT3 Version "))  {      // Analog HitController.IsServiceAvailable() !
               // sieht nach korrekter Antwort aus
-              log("-> HIT3 REST "+strContent+" gefunden");
+              log("-> HIT3 REST gefunden: lieferte '"+strContent+"'");
               continue;
             }
           }
           catch (Exception e) {
             // der Service reagierte anders/falsch, den nächsten versuchen
             log("-> HIT3 REST lieferte etwas anderes\n"+strContent);
-            log(e.ToString());
+            if (strContent != null) log(e.ToString());
             objClient = null;
           }
 
@@ -795,7 +795,7 @@ log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
 
 
     private static void pressEnterTo(String action) {
-      Console.WriteLine("Press <Enter> to " + action + " ...");
+      Console.WriteLine("\nPress <Enter> to " + action + " ...");
       Console.ReadLine();
     }
 

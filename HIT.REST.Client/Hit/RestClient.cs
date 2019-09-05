@@ -370,12 +370,12 @@ Program.tee("> HTTP Fehler: "+objErrors["Message"]);
         }
       }
       catch (Exception e)  {
-Program.tee(e.Message+"\n\n"+e.StackTrace.ToString());
-        String strStatus = "[null response?!]";
-        if (pobjResponse != null) {
-          strStatus = ((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase;
-        }
-        Program.log("Keine Verbindung zu "+objThisUA.BaseAddress+" möglich!? "+strStatus/*+"\n"+e*/);
+//Program.tee(e.Message+"\n\n"+e.StackTrace.ToString());
+//        String strStatus = "[null response?!]";
+//        if (pobjResponse != null) {
+//          strStatus = ((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase;
+//        }
+        Program.log("Keine Verbindung zu "+objThisUA.BaseAddress+" möglich!? "/*+strStatus+"\n"+e*/);
         objContent = default(T);
       }
 
