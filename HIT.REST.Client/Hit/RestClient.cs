@@ -54,10 +54,10 @@ namespace HIT.REST.Client.Hit {
 //--------------------------------------------------------------------
 
     /// <summary>HTTP User Agent mit der Basisadresse</summary>
-    private HttpClient          objThisUA;
+    private readonly HttpClient          objThisUA;
 
     /// <summary>Basispfad unterhalb der Basisadresse; wird für Anfrage-URI benötigt</summary>
-    private String              strThisBasePath;
+    private readonly String              strThisBasePath;
 
 
     /// <summary>Das aktuelle Secret der REST-Sitzung.</summary>
@@ -85,9 +85,10 @@ namespace HIT.REST.Client.Hit {
       Credentials           = null;
 
       // Anlegen inkl. vorbereiteter Basisadresse
-      objThisUA = new HttpClient();
-      // generelle Parameter setzen
-      objThisUA.BaseAddress = new Uri(pobjBaseUrl.BaseUrl+strThisBasePath.Substring(strThisBasePath.StartsWith("/") ? 1 : 0));
+      objThisUA = new HttpClient {
+        // generelle Parameter setzen
+        BaseAddress = new Uri(pobjBaseUrl.BaseUrl+strThisBasePath.Substring(strThisBasePath.StartsWith("/") ? 1 : 0))
+      };
       objThisUA.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
@@ -107,7 +108,7 @@ namespace HIT.REST.Client.Hit {
       }
     }
 
-    public void ensureCredentials() {
+    public void EnsureCredentials() {
       if (Credentials == null)  throw new InvalidOperationException("Ohne Anmeldedaten kein HIT3-REST!");
     }
 
@@ -133,7 +134,7 @@ namespace HIT.REST.Client.Hit {
     /// </summary>
     /// <param name="pobjTask"><see cref="Task"/> zum Vorbereiten oder bei <tt>null</tt> wird der HTTP-Client für ein Beenden der Session vorbereitet</param>
     /// <returns><see cref="URI"/></returns>
-    public URI prepareFor(Task pobjTask) {
+    public URI PrepareFor(Task pobjTask) {
       bool endSession = (pobjTask == null);
 //Program.log("RestClient.prepareFor(Task "+(endSession?"<logout>":"'"+pobjTask.Display+"'")+") with secret="+(Secret==null?"<null>":Secret)+" ...");
 
@@ -259,20 +260,20 @@ namespace HIT.REST.Client.Hit {
 
 
 
-    public T sendGET<T>(URI pobjUri,out HttpResponseMessage pobjResponse) {
-      return send<T>(Verb.Get,pobjUri,null,out pobjResponse);
+    public T SendGET<T>(URI pobjUri,out HttpResponseMessage pobjResponse) {
+      return SendOne<T>(Verb.Get,pobjUri,null,out pobjResponse);
     }
 
-    public T sendPUT<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
-      return send<T>(Verb.Put,pobjUri,pobjRequestContent,out pobjResponse);
+    public T SendPUT<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse)  {
+      return SendOne<T>(Verb.Put,pobjUri,pobjRequestContent,out pobjResponse);
     }
 
-    public T sendPOST<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
-      return send<T>(Verb.Post,pobjUri,pobjRequestContent,out pobjResponse);
+    public T SendPOST<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
+      return SendOne<T>(Verb.Post,pobjUri,pobjRequestContent,out pobjResponse);
     }
 
-    public T sendDELETE<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
-      return send<T>(Verb.Delete,pobjUri,pobjRequestContent,out pobjResponse);
+    public T SendDELETE<T>(URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
+      return SendOne<T>(Verb.Delete,pobjUri,pobjRequestContent,out pobjResponse);
     }
 
     
@@ -284,7 +285,7 @@ namespace HIT.REST.Client.Hit {
     /// <param name="pobjUri"><see cref="URI"/>, die gesendet werden soll</param>
     /// <param name="pobjResponse">Die <see cref="HttpRequestMessage"/></param>
     /// <returns>die vom HIT3-REST-Service erhaltene Antwort in Rohform oder <tt>null</tt>, wenn kein Content gelesen werden konnte</returns>
-    private T send<T>(Verb penumVerb,URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
+    private T SendOne<T>(Verb penumVerb,URI pobjUri,HttpContent pobjRequestContent,out HttpResponseMessage pobjResponse) {
       if (pobjUri == null)  throw new ArgumentNullException(nameof(pobjUri),"Eine URI ist unabdingbar!");
 
       // bei GET gibt es keinen HttpContent, bei den anderen muss einer dabei sein
@@ -308,7 +309,7 @@ Program.log("#> send("+penumVerb+"): URI "+pobjUri.ToString()+"\n\tvia "+objThis
       // standardmäßig erst mal keine Antwort
       pobjResponse = null;
 
-      T objContent = default(T);
+      T objContent = default;
       try {
         switch (penumVerb)  {
           case Verb.Get:
@@ -325,10 +326,11 @@ Program.log("#> send("+penumVerb+"): URI "+pobjUri.ToString()+"\n\tvia "+objThis
 
           case Verb.Delete:
             // Note: DELETE does NOT support entity body, therefore there's no "content" parameter!
-//            pobjResponse = objThisUA.DeleteAsync(pobjUri.ToString()).Result;
+            //            pobjResponse = objThisUA.DeleteAsync(pobjUri.ToString()).Result;
             // since DELETE does not support a entity body, we set it up on our own:
-            HttpRequestMessage objReq = new HttpRequestMessage(HttpMethod.Delete,pobjUri.ToString());
-            objReq.Content = pobjRequestContent;
+            HttpRequestMessage objReq = new HttpRequestMessage(HttpMethod.Delete,pobjUri.ToString()) {
+              Content = pobjRequestContent
+            };
             pobjResponse = objThisUA.SendAsync(objReq).Result;
             break;
 
@@ -366,17 +368,17 @@ else if (objContent != null)  {
           // Fehlermeldung holen; die wird als Fehlerlist geliefert
          Dictionary<String,Object> objErrors = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
 Program.tee("> HTTP Fehler: "+objErrors["Message"]);
-          objContent = default(T);
+          objContent = default;
         }
       }
-      catch (Exception e)  {
+      catch (Exception)  {
 //Program.tee(e.Message+"\n\n"+e.StackTrace.ToString());
 //        String strStatus = "[null response?!]";
 //        if (pobjResponse != null) {
 //          strStatus = ((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase;
 //        }
         Program.log("Keine Verbindung zu "+objThisUA.BaseAddress+" möglich!? "/*+strStatus+"\n"+e*/);
-        objContent = default(T);
+        objContent = default;
       }
 
       return objContent;

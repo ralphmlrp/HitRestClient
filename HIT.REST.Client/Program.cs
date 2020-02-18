@@ -119,11 +119,11 @@ Console.WriteLine(e.ToString());
         // lege RestClient für nächste BaseUrl an
         objClient = new RestClient(staticConfig.BaseUrls[intUrlIndex++],staticConfig.BasePath);
         // Basis-URI des Clients geben lassen
-        URI objURI = objClient.prepareFor(null);
+        URI objURI = objClient.PrepareFor(null);
         // frage an, ob der reagiert
         HttpResponseMessage objResponse = null;
 //        Dictionary<String,Object> objContent = objClient.sendGET(objURI,out objResponse);
-        String strContent = objClient.sendGET<String>(objURI,out objResponse);
+        String strContent = objClient.SendGET<String>(objURI,out objResponse);
         if (objResponse == null)  {
           // der Service reagierte nicht -> den nächsten versuchen
           log("-> keine Reaktion!");
@@ -238,7 +238,7 @@ Console.WriteLine(e.ToString());
       // am Ende zusätzlich ein explizites Beenden der REST-Sitzung durchführen
       // (sofern eine Sitzung existiert)
       if (pobjClient.Secret != null) {
-        URI objRequest = pobjClient.prepareFor(null);
+        URI objRequest = pobjClient.PrepareFor(null);
         //objRequest.Query["bnr"] = objCred.Betriebsnummer;
         //if (!String.IsNullOrWhiteSpace(objCred.Mitbenutzer))  {
         //  objRequest.Query["mbn"] = objCred.Mitbenutzer;
@@ -248,7 +248,7 @@ Console.WriteLine(e.ToString());
         }
         objRequest.RestPath = "session";    // eigene Entität für die Beendigung der Session
         HttpResponseMessage objResponse;
-        Dictionary<String,Object> objContent = pobjClient.sendDELETE<Dictionary<String,Object>>(objRequest,null,out objResponse);
+        Dictionary<String,Object> objContent = pobjClient.SendDELETE<Dictionary<String,Object>>(objRequest,null,out objResponse);
         if (objResponse == null) {
           tee($"-> DELETE Session fehlgeschlagen!?");
         }
@@ -304,13 +304,13 @@ Console.WriteLine(e.ToString());
             watch.Start();
 
             // die Zeile ist die Bedingung, also zusammenstellen:
-            URI objRequest = pobjClient.prepareFor(pobjTask);
+            URI objRequest = pobjClient.PrepareFor(pobjTask);
             objRequest.Query.Add("columns",   strColumns);
             objRequest.Query.Add("condition", strLine);
 
             // Senden
             HttpResponseMessage objResponse;
-            Dictionary<String,Object> objContent = pobjClient.sendGET<Dictionary<String,Object>>(objRequest,out objResponse);
+            Dictionary<String,Object> objContent = pobjClient.SendGET<Dictionary<String,Object>>(objRequest,out objResponse);
             // objContent enthält in C# ein JObject mit mehreren Schlüsseln und Werten, die wiederum JObjects und JArrays sind
             // der send() hat einen erzeugten Secret bereits extrahiert, d.h. man muss sich nicht mehr kümmern
             watch.Stop();
@@ -505,7 +505,7 @@ tee("Keine Daten zu "+jsonEntity+" erhalten ...");
       watch.Start();
 
       // die Zeile ist die Bedingung, also zusammenstellen:
-      URI objRequest = pobjClient.prepareFor(pobjTask);
+      URI objRequest = pobjClient.PrepareFor(pobjTask);
 log(enumVerb+" "+objRequest);
 log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
       // Senden per zum Task passenden Verb
@@ -513,13 +513,13 @@ log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
       Dictionary<String,Object> objContent  = null;
       switch (enumVerb) {
         case RestClient.Verb.Put:
-          objContent = pobjClient.sendPUT<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
+          objContent = pobjClient.SendPUT<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
           break;
         case RestClient.Verb.Post:
-          objContent = pobjClient.sendPOST<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
+          objContent = pobjClient.SendPOST<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
           break;
         case RestClient.Verb.Delete:
-          objContent = pobjClient.sendDELETE<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
+          objContent = pobjClient.SendDELETE<Dictionary<String,Object>>(objRequest,pobjContent,out objResponse);
           break;
 
         default:
