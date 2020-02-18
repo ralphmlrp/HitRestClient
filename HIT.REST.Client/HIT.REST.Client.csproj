@@ -107,7 +107,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Daten\GeburtRequestJSON.json" />
+    <Content Include="Daten\MixedZuAbgangDatenJSON.txt" />
     <Content Include="Daten\GeburtResponse.txt" />
+    <Content Include="Daten\AbgangDatenJSON.txt" />
     <Content Include="Daten\ZugangDatenJSON.txt" />
     <Content Include="Daten\ZugangDatenCSV.txt" />
     <Content Include="Daten\ZugangRequest.txt" />
