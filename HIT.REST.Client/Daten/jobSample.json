@@ -30,14 +30,14 @@
       "Action": "IS",
       "Blocksize": 20,
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputPath": "Daten\\ZugangDaten.txt",
       "InputMode": "CSV"
     },
     {
       "Description": "Meldung Zugänge via JSON",
       "Action": "IS",
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputPath": "Daten\\ZugangDaten.json",
       "InputMode": "JSON"
     },
     {
@@ -45,14 +45,14 @@
       "Action": "SS",
       "Blocksize": 2,
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputPath": "Daten\\ZugangDaten.txt",
       "InputMode": "CSV"
     },
     {
       "Description": "Insert Zugänge via JSON",
       "Action": "IS",
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputPath": "Daten\\ZugangDaten.json",
       "InputMode": "JSON"
     }
   ]

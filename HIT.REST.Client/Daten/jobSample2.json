@@ -21,9 +21,9 @@
       "Description": "Abfrage Geburten mittles JSON",
       "Action": "RS",
       "Entity": "Geburt",
-      "InputPath": "Daten\\GeburtRequestJSON.json",
+      "InputPath": "Daten\\GeburtRequest.json",
       "InputMode": "JSON",
-      "OutputPath": "Daten\\GeburtResponseJSON.txt"
+      "OutputPath": "Daten\\GeburtResponse.json"
     },
     {
       "Description": "Abfrage Geburten mit Befehl ...",
@@ -45,14 +45,14 @@
       "Action": "IS",
       "Blocksize": 20,
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputPath": "Daten\\ZugangDaten.txt",
       "InputMode": "CSV"
     },
     {
       "Description": "Meldung Zugänge via JSON",
       "Action": "IS",
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputPath": "Daten\\ZugangDaten.json",
       "InputMode": "JSON"
     },
     {
@@ -60,14 +60,14 @@
       "Action": "SS",
       "Blocksize": 2,
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenCSV.txt",
+      "InputPath": "Daten\\ZugangDaten.txt",
       "InputMode": "CSV"
     },
     {
       "Description": "Insert Zugänge via JSON",
       "Action": "IS",
       "Entity": "Zugang",
-      "InputPath": "Daten\\ZugangDatenJSON.txt",
+      "InputPath": "Daten\\ZugangDaten.json",
       "InputMode": "JSON"
     }
   ]

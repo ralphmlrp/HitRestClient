@@ -87,9 +87,12 @@ namespace HIT.REST.Client.Hit {
       // Anlegen inkl. vorbereiteter Basisadresse
       objThisUA = new HttpClient {
         // generelle Parameter setzen
-        BaseAddress = new Uri(pobjBaseUrl.BaseUrl+strThisBasePath.Substring(strThisBasePath.StartsWith("/") ? 1 : 0))
+        BaseAddress = new Uri(pobjBaseUrl.BaseUrl+strThisBasePath.Substring(strThisBasePath.StartsWith("/") ? 1 : 0)),
+        Timeout     = new TimeSpan(0,5,0)
       };
       objThisUA.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+Program.log("Set up RestClient with "+objThisUA.BaseAddress+" ...");
     }
 
 
@@ -309,7 +312,7 @@ Program.log("#> send("+penumVerb+"): URI "+pobjUri.ToString()+"\n\tvia "+objThis
       // standardmäßig erst mal keine Antwort
       pobjResponse = null;
 
-      T objContent = default;
+      T objContent = default(T);
       try {
         switch (penumVerb)  {
           case Verb.Get:
@@ -368,7 +371,7 @@ else if (objContent != null)  {
           // Fehlermeldung holen; die wird als Fehlerlist geliefert
          Dictionary<String,Object> objErrors = pobjResponse.Content.ReadAsAsync<Dictionary<String,Object>>().Result;
 Program.tee("> HTTP Fehler: "+objErrors["Message"]);
-          objContent = default;
+          objContent = default(T);
         }
       }
       catch (Exception)  {
@@ -378,7 +381,7 @@ Program.tee("> HTTP Fehler: "+objErrors["Message"]);
 //          strStatus = ((int)pobjResponse.StatusCode)+" "+pobjResponse.ReasonPhrase;
 //        }
         Program.log("Keine Verbindung zu "+objThisUA.BaseAddress+" möglich!? "/*+strStatus+"\n"+e*/);
-        objContent = default;
+        objContent = default(T);
       }
 
       return objContent;

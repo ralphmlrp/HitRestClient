@@ -1,0 +1,19 @@
+{
+  "Credentials": {
+    "AuthenticationMode": "QueryString",
+    "UseSecret": true,
+    "Betriebsnummer": "09 000 000 5900",
+    "Mitbenutzer": "0",
+    "PIN": "905900",
+    "TimeoutInSeconds": 20
+  },
+  "Tasks": [
+    {
+      "Description": "Upload Foto",
+      "Action": "IS",
+      "Entity": "FD_BILD",
+      "InputPath": "Daten\\FotoDaten.json",
+      "InputMode": "JSON"
+    }
+  ]
+}

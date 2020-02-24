@@ -72,10 +72,8 @@
     <Compile Include="config\CertificateWarningElement.cs" />
     <Compile Include="config\BaseUrlElement.cs" />
     <Compile Include="config\BaseUrlsCollection.cs" />
-    <Compile Include="config\obsolete\ApiInformation.cs" />
     <Compile Include="config\HitSettingsSection.cs" />
     <Compile Include="Helper.cs" />
-    <Compile Include="config\obsolete\HitSettingsSection.cs" />
     <Compile Include="Hit\RestClient.cs" />
     <Compile Include="Hit\Task.cs" />
     <Compile Include="Hit\Credentials.cs" />
@@ -89,8 +87,11 @@
     <None Include="app.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="Daten\FotoDaten.alle.json" />
+    <None Include="Daten\jobFotoDB.json" />
     <None Include="Daten\jobSample2.json" />
     <None Include="Daten\jobSample.json" />
+    <None Include="Daten\FotoDaten.json" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -106,12 +107,12 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Daten\GeburtRequestJSON.json" />
-    <Content Include="Daten\MixedZuAbgangDatenJSON.txt" />
+    <None Include="Daten\GeburtRequest.json" />
+    <None Include="Daten\MixedZuAbgangDaten.json" />
     <Content Include="Daten\GeburtResponse.txt" />
-    <Content Include="Daten\AbgangDatenJSON.txt" />
-    <Content Include="Daten\ZugangDatenJSON.txt" />
-    <Content Include="Daten\ZugangDatenCSV.txt" />
+    <None Include="Daten\AbgangDaten.json" />
+    <None Include="Daten\ZugangDaten.json" />
+    <Content Include="Daten\ZugangDaten.txt" />
     <Content Include="Daten\ZugangRequest.txt" />
     <Content Include="Daten\GeburtRequest.txt" />
     <Content Include="Daten\ZugangResponse.txt" />

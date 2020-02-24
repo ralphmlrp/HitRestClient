@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 
 using HIT.REST.Client.config;
@@ -32,6 +33,10 @@ namespace HIT.REST.Client {
 
 //--------------------------------------------------------------------
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="args">1..n JSON-Job-Dateien, die die durchzuführenden Aufgaben beschreiben</param>
     static void Main(string[] args) {
 
       //URI objTest = new URI();
@@ -415,6 +420,7 @@ tee("Keine Daten zu "+jsonEntity+" erhalten ...");
 
       if (pobjTask.IsInputModeJSON()) {
         String strJSON = File.ReadAllText(pobjTask.InputPath);
+        strJSON = prepareJSONforSending(strJSON);
         sendDataAndHandleResult(pobjTask,new StringContent(strJSON,Encoding.UTF8,"application/json"),pobjClient,pobjCred);
         tee("-> "+strJSON.Length+" Zeichen JSON verarbeitet");
       }
@@ -498,6 +504,139 @@ tee("Keine Daten zu "+jsonEntity+" erhalten ...");
 
 
 
+    private static String prepareJSONforSending(String pstrJSON)  {
+      // first convert string into JSON
+      JToken objJSON;
+      try {
+        objJSON = JToken.Parse(pstrJSON);
+        if (objJSON is JArray)  {
+          // passt - Liste mit JObjects
+        }
+        else if (objJSON is JObject)  {
+          // passt nicht ganz - das JObject packen wir in ein JArray
+          objJSON = new JArray(objJSON);
+        }
+        else {
+          throw new ArgumentException("Invalid JSON content");
+        }
+      }
+      catch (Exception e) {
+        // return unchanged
+        log("Preparing JSON failed: "+e);
+        return pstrJSON;
+      }
+
+      // rekursiv durch den JObject-Baum gehen und Werte verarbeiten, die als Befehl "@COMMAND()" aufgebaut sind
+      bool somethingChanged = prepareJSON((JArray)objJSON);
+
+      if (somethingChanged) {
+        return objJSON.ToString(Formatting.Indented);
+      }
+
+      return pstrJSON;
+    }
+
+
+
+    private const int   MAX_RECURSION_LEVEL = 5;    // to avoid a recursion loop
+    private static bool prepareJSON(JArray pobjList,int level = 1)  {
+      if (level < 1)  throw new ArgumentException("Level must be 1 or larger");
+      if (pobjList == null) return false;
+
+      bool somethingChanged = false;
+
+      foreach (JToken objToken in pobjList) {
+        if (objToken is JArray) {
+          if (level < MAX_RECURSION_LEVEL) prepareJSON((JArray)objToken,1+level);  
+        }
+        else if (objToken is JObject) {
+          foreach (KeyValuePair<String,JToken> objPair in (JObject)objToken)  {
+            if (objPair.Value is JArray) {
+              if (level < MAX_RECURSION_LEVEL) prepareJSON((JArray)objPair.Value,1+level);  
+            }
+            else if (objPair.Value is JValue)  {
+              JValue val = (JValue)objPair.Value;
+              somethingChanged |= replaceJSONvalue(val);
+            }
+            else {
+              // ignore = keep is is
+            }
+          }
+        }
+        else {
+          // ignore = keep is is
+        }
+      }
+
+      return somethingChanged;
+    }
+
+
+    private static bool replaceJSONvalue(JValue pobjVal) {
+      bool somethingChanged = false;
+
+      if (pobjVal == null)                    return somethingChanged;
+      if (pobjVal.Type != JTokenType.String)  return somethingChanged;
+
+      String strVal = ((String)pobjVal.Value).Trim();
+
+      if (!strVal.StartsWith("@"))  return somethingChanged;   // is no command
+      if (!strVal.EndsWith(")"))    return somethingChanged;   // command must end with ")"
+
+      int intPosBracket = strVal.IndexOf('(',1);      // look for starting "("
+      if (intPosBracket < 0)  return somethingChanged;   // missing "("
+      String strCmd = strVal.Substring(1,intPosBracket-1);
+      strVal        = strVal.Substring(intPosBracket+1,strVal.Length-intPosBracket-2);  // 2 for "()"
+
+      MD5 hasher = MD5.Create();
+
+      byte[] aBytes;
+      switch (strCmd.ToUpperInvariant())  {
+        case "GUID":
+          pobjVal.Value = Guid.NewGuid().ToString();
+//log("New GUID = "+pobjVal.Value);
+          somethingChanged =  true;
+          break;
+
+        case "CONTENT":
+          // get the content of the given file and use it as Base64
+          try {
+            aBytes = File.ReadAllBytes(strVal);
+            pobjVal.Value = Convert.ToBase64String(aBytes);
+//log("Base64ed the contents of '"+strVal+"' ("+aBytes.Length+" bytes) = "+((String)pobjVal.Value).Length+" chars");
+            somethingChanged =  true;
+          }
+          catch (Exception e) {
+log("Base64ing the contents of '"+strVal+"' failed: "+e);
+          }
+          break;
+        case "MD5":
+          // get the content of the given file and calculate its MD5
+          try {
+            aBytes = File.ReadAllBytes(strVal);
+            hasher.Initialize();
+            hasher.ComputeHash(aBytes);
+            pobjVal.Value = Helper.hexEncode(hasher.Hash);
+//log("MD5ed the contents of '"+strVal+"' ("+aBytes.Length+" bytes) = "+pobjVal.Value);
+            somethingChanged =  true;
+          }
+          catch (Exception e) {
+log("MD5ing the contents of '"+strVal+"' failed: "+e);
+          }
+          break;
+
+        // more may follow here
+
+        default:
+          break;
+
+      }
+
+      return somethingChanged;
+    }
+
+
+
     private static bool sendDataAndHandleResult(Task pobjTask,HttpContent pobjContent,RestClient pobjClient,Credentials pobjCred) {
       RestClient.Verb enumVerb =  pobjTask.GetVerb();
 
@@ -506,8 +645,8 @@ tee("Keine Daten zu "+jsonEntity+" erhalten ...");
 
       // die Zeile ist die Bedingung, also zusammenstellen:
       URI objRequest = pobjClient.PrepareFor(pobjTask);
-log(enumVerb+" "+objRequest);
-log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
+//log(enumVerb+" "+objRequest);
+//log("HTTP Content: "+pobjContent.ReadAsStringAsync().Result);
       // Senden per zum Task passenden Verb
       HttpResponseMessage       objResponse;
       Dictionary<String,Object> objContent  = null;
