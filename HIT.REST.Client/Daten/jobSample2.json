@@ -9,7 +9,7 @@
   },
   "Tasks": [
     {
-      "Description": "Abfrage Geburten mittles CSV",
+      "Description": "Abfrage Geburten mittels CSV",
       "Action": "RS",
       "Subcodes": "H",
       "Entity": "Geburt",
@@ -18,7 +18,7 @@
       "OutputPath": "Daten\\GeburtResponse.txt"
     },
     {
-      "Description": "Abfrage Geburten mittles JSON",
+      "Description": "Abfrage Geburten mittels JSON",
       "Action": "RS",
       "Entity": "Geburt",
       "InputPath": "Daten\\GeburtRequest.json",
